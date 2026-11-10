@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file pnl.proto.
  */
 export const file_pnl: GenFile = /*@__PURE__*/
-  fileDesc("CglwbmwucHJvdG8SD2ludmVzdGlxLnBubC52MSJ+CglQbkxVcGRhdGUSEAoIYXNfb2ZfbXMYASABKAMSLwoJcG9zaXRpb25zGAIgAygLMhwuaW52ZXN0aXEucG5sLnYxLlBvc2l0aW9uUG5MEi4KBnRvdGFscxgDIAMoCzIeLmludmVzdGlxLnBubC52MS5DdXJyZW5jeVRvdGFsIscCCgtQb3NpdGlvblBuTBISCgphY2NvdW50X2lkGAEgASgDEg4KBnN5bWJvbBgCIAEoCRIQCghjdXJyZW5jeRgDIAEoCRIQCghxdWFudGl0eRgEIAEoARIUCgxhdmVyYWdlX2Nvc3QYBSABKAESEgoKY29zdF9iYXNpcxgGIAEoARINCgVwcmljZRgHIAEoARIUCgxtYXJrZXRfdmFsdWUYCCABKAESFgoOdW5yZWFsaXplZF9wbmwYCSABKAESFgoOdW5yZWFsaXplZF9wY3QYCiABKAESFAoMZmlyc3RfYnV5X21zGAsgASgDEhYKDnF1b3RlX2FzX29mX21zGAwgASgDEicKBnN0YXR1cxgNIAEoDjIXLmludmVzdGlxLnBubC52MS5TdGF0dXMSGgoSaW5jb21wbGV0ZV9oaXN0b3J5GA4gASgIInsKDUN1cnJlbmN5VG90YWwSEAoIY3VycmVuY3kYASABKAkSEgoKY29zdF9iYXNpcxgCIAEoARIUCgxtYXJrZXRfdmFsdWUYAyABKAESFgoOdW5yZWFsaXplZF9wbmwYBCABKAESFgoOdW5yZWFsaXplZF9wY3QYBSABKAEqSgoGU3RhdHVzEg0KCVNUQVRVU19PSxAAEhMKD1NUQVRVU19OT19RVU9URRABEhwKGFNUQVRVU19DVVJSRU5DWV9NSVNNQVRDSBACYgZwcm90bzM");
+  fileDesc("CglwbmwucHJvdG8SD2ludmVzdGlxLnBubC52MSKdAgoJUG5MVXBkYXRlEhAKCGFzX29mX21zGAEgASgDEi8KCXBvc2l0aW9ucxgCIAMoCzIcLmludmVzdGlxLnBubC52MS5Qb3NpdGlvblBuTBIuCgZ0b3RhbHMYAyADKAsyHi5pbnZlc3RpcS5wbmwudjEuQ3VycmVuY3lUb3RhbBIyCgpiYXNlX3RvdGFsGAQgASgLMh4uaW52ZXN0aXEucG5sLnYxLkN1cnJlbmN5VG90YWwSOQoIZnhfcmF0ZXMYBSADKAsyJy5pbnZlc3RpcS5wbmwudjEuUG5MVXBkYXRlLkZ4UmF0ZXNFbnRyeRouCgxGeFJhdGVzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgBOgI4ASLwAgoLUG9zaXRpb25QbkwSEgoKYWNjb3VudF9pZBgBIAEoAxIOCgZzeW1ib2wYAiABKAkSEAoIY3VycmVuY3kYAyABKAkSEAoIcXVhbnRpdHkYBCABKAESFAoMYXZlcmFnZV9jb3N0GAUgASgBEhIKCmNvc3RfYmFzaXMYBiABKAESDQoFcHJpY2UYByABKAESFAoMbWFya2V0X3ZhbHVlGAggASgBEhYKDnVucmVhbGl6ZWRfcG5sGAkgASgBEhYKDnVucmVhbGl6ZWRfcGN0GAogASgBEhQKDGZpcnN0X2J1eV9tcxgLIAEoAxIWCg5xdW90ZV9hc19vZl9tcxgMIAEoAxInCgZzdGF0dXMYDSABKA4yFy5pbnZlc3RpcS5wbmwudjEuU3RhdHVzEhoKEmluY29tcGxldGVfaGlzdG9yeRgOIAEoCBInCgZzb3VyY2UYDyABKA4yFy5pbnZlc3RpcS5wbmwudjEuU291cmNlInsKDUN1cnJlbmN5VG90YWwSEAoIY3VycmVuY3kYASABKAkSEgoKY29zdF9iYXNpcxgCIAEoARIUCgxtYXJrZXRfdmFsdWUYAyABKAESFgoOdW5yZWFsaXplZF9wbmwYBCABKAESFgoOdW5yZWFsaXplZF9wY3QYBSABKAEqNAoGU291cmNlEhcKE1NPVVJDRV9UUkFOU0FDVElPTlMQABIRCg1TT1VSQ0VfQlJPS0VSEAEqXgoGU3RhdHVzEg0KCVNUQVRVU19PSxAAEhMKD1NUQVRVU19OT19RVU9URRABEhwKGFNUQVRVU19DVVJSRU5DWV9NSVNNQVRDSBACEhIKDlNUQVRVU19OT19DT1NUEANiBnByb3RvMw");
 
 /**
  * One SSE event carries one PnLUpdate, serialized and base64-encoded in the `data:` field.
@@ -35,6 +35,20 @@ export type PnLUpdate = Message<"investiq.pnl.v1.PnLUpdate"> & {
    * @generated from field: repeated investiq.pnl.v1.CurrencyTotal totals = 3;
    */
   totals: CurrencyTotal[];
+
+  /**
+   * All totals converted to the server's base currency at spot FX. Unset when a rate was missing.
+   *
+   * @generated from field: investiq.pnl.v1.CurrencyTotal base_total = 4;
+   */
+  baseTotal?: CurrencyTotal | undefined;
+
+  /**
+   * base units per one unit of each currency
+   *
+   * @generated from field: map<string, double> fx_rates = 5;
+   */
+  fxRates: { [key: string]: number };
 };
 
 /**
@@ -69,6 +83,8 @@ export type PositionPnL = Message<"investiq.pnl.v1.PositionPnL"> & {
   quantity: number;
 
   /**
+   * average_cost and cost_basis are 0 when status == STATUS_NO_COST
+   *
    * @generated from field: double average_cost = 5;
    */
   averageCost: number;
@@ -79,7 +95,8 @@ export type PositionPnL = Message<"investiq.pnl.v1.PositionPnL"> & {
   costBasis: number;
 
   /**
-   * price, market_value, unrealized_pnl and unrealized_pct are only meaningful when status == STATUS_OK.
+   * unrealized_pnl and unrealized_pct are only meaningful when status == STATUS_OK;
+   * price and market_value also when status == STATUS_NO_COST.
    *
    * @generated from field: double price = 7;
    */
@@ -120,11 +137,16 @@ export type PositionPnL = Message<"investiq.pnl.v1.PositionPnL"> & {
   status: Status;
 
   /**
-   * sells exceeded the stored buys; cost basis may be off
+   * stored sells exceeded stored buys (so source is broker)
    *
    * @generated from field: bool incomplete_history = 14;
    */
   incompleteHistory: boolean;
+
+  /**
+   * @generated from field: investiq.pnl.v1.Source source = 15;
+   */
+  source: Source;
 };
 
 /**
@@ -174,6 +196,30 @@ export const CurrencyTotalSchema: GenMessage<CurrencyTotal> = /*@__PURE__*/
   messageDesc(file_pnl, 2);
 
 /**
+ * Where quantity and cost come from: our stored transactions when they reproduce the broker's
+ * quantity, otherwise the broker's own position snapshot.
+ *
+ * @generated from enum investiq.pnl.v1.Source
+ */
+export enum Source {
+  /**
+   * @generated from enum value: SOURCE_TRANSACTIONS = 0;
+   */
+  TRANSACTIONS = 0,
+
+  /**
+   * @generated from enum value: SOURCE_BROKER = 1;
+   */
+  BROKER = 1,
+}
+
+/**
+ * Describes the enum investiq.pnl.v1.Source.
+ */
+export const SourceSchema: GenEnum<Source> = /*@__PURE__*/
+  enumDesc(file_pnl, 0);
+
+/**
  * @generated from enum investiq.pnl.v1.Status
  */
 export enum Status {
@@ -191,11 +237,18 @@ export enum Status {
    * @generated from enum value: STATUS_CURRENCY_MISMATCH = 2;
    */
   CURRENCY_MISMATCH = 2,
+
+  /**
+   * priced, but the broker reported no cost basis
+   *
+   * @generated from enum value: STATUS_NO_COST = 3;
+   */
+  NO_COST = 3,
 }
 
 /**
  * Describes the enum investiq.pnl.v1.Status.
  */
 export const StatusSchema: GenEnum<Status> = /*@__PURE__*/
-  enumDesc(file_pnl, 0);
+  enumDesc(file_pnl, 1);
 

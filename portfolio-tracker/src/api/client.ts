@@ -1,0 +1,57 @@
+import type {
+  HistoryInterval, HistoryRange, HistoryResponse, LedgerPage, LinkedAccount, PortfolioSnapshot, TransactionKind,
+  ValueHistoryResponse,
+} from '../types'
+
+async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
+  const res = await fetch(url, { signal, headers: { Accept: 'application/json' } })
+  if (!res.ok) throw new Error(`${url} responded ${res.status}`)
+  return res.json() as Promise<T>
+}
+
+export const fetchPositions = (signal?: AbortSignal) => getJson<PortfolioSnapshot>('/api/positions', signal)
+
+export function fetchHistory(
+  symbol: string, range: HistoryRange, interval: HistoryInterval, signal?: AbortSignal,
+): Promise<HistoryResponse> {
+  const qs = new URLSearchParams({ range, interval })
+  return getJson<HistoryResponse>(`/api/history/${encodeURIComponent(symbol)}?${qs}`, signal)
+}
+
+export function fetchValueHistory(currency: string, range: HistoryRange, signal?: AbortSignal): Promise<ValueHistoryResponse> {
+  const qs = new URLSearchParams({ range, currency })
+  return getJson<ValueHistoryResponse>(`/api/portfolio/value?${qs}`, signal)
+}
+
+export const fetchAccounts = (signal?: AbortSignal) => getJson<LinkedAccount[]>('/api/ledger/accounts', signal)
+
+export interface LedgerQuery {
+  institution?: string
+  accountId?: number
+  kinds: TransactionKind[]
+  symbol?: string
+  /** YYYY-MM-DD, inclusive */
+  start?: string
+  end?: string
+}
+
+/** Query string shared by the ledger page and its CSV export. */
+export function ledgerParams(q: LedgerQuery): URLSearchParams {
+  const qs = new URLSearchParams()
+  if (q.institution) qs.set('institution', q.institution)
+  if (q.accountId !== undefined) qs.set('account_id', String(q.accountId))
+  q.kinds.forEach((k) => qs.append('kind', k))
+  if (q.symbol?.trim()) qs.set('symbol', q.symbol.trim())
+  if (q.start) qs.set('start', q.start)
+  if (q.end) qs.set('end', q.end)
+  return qs
+}
+
+export function fetchLedger(q: LedgerQuery, limit: number, offset: number, signal?: AbortSignal): Promise<LedgerPage> {
+  const qs = ledgerParams(q)
+  qs.set('limit', String(limit))
+  qs.set('offset', String(offset))
+  return getJson<LedgerPage>(`/api/transactions?${qs}`, signal)
+}
+
+export const ledgerCsvUrl = (q: LedgerQuery) => `/api/transactions.csv?${ledgerParams(q)}`

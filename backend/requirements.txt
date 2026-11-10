@@ -5,7 +5,7 @@ sqlalchemy
 alembic
 cryptography
 pydantic-settings
-protobuf>=6
+protobuf>=7.35
 yfinance
 snaptrade-python-sdk
 pytest

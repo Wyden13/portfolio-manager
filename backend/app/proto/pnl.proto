@@ -1,0 +1,44 @@
+syntax = "proto3";
+
+package investiq.pnl.v1;
+
+// One SSE event carries one PnLUpdate, serialized and base64-encoded in the `data:` field.
+// Amounts are doubles for display; the server computes with exact decimals.
+message PnLUpdate {
+  int64 as_of_ms = 1;                    // server time, unix epoch milliseconds (UTC)
+  repeated PositionPnL positions = 2;
+  repeated CurrencyTotal totals = 3;
+}
+
+message PositionPnL {
+  int64 account_id = 1;
+  string symbol = 2;
+  string currency = 3;
+  double quantity = 4;
+  double average_cost = 5;
+  double cost_basis = 6;
+  // price, market_value, unrealized_pnl and unrealized_pct are only meaningful when status == STATUS_OK.
+  double price = 7;
+  double market_value = 8;
+  double unrealized_pnl = 9;
+  double unrealized_pct = 10;
+  int64 first_buy_ms = 11;               // 0 when unknown
+  int64 quote_as_of_ms = 12;             // 0 when no quote
+  Status status = 13;
+  bool incomplete_history = 14;          // sells exceeded the stored buys; cost basis may be off
+}
+
+enum Status {
+  STATUS_OK = 0;
+  STATUS_NO_QUOTE = 1;
+  STATUS_CURRENCY_MISMATCH = 2;
+}
+
+// Totals only include positions priced successfully, grouped by currency (no FX conversion).
+message CurrencyTotal {
+  string currency = 1;
+  double cost_basis = 2;
+  double market_value = 3;
+  double unrealized_pnl = 4;
+  double unrealized_pct = 5;
+}

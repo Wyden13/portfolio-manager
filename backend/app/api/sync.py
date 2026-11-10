@@ -8,7 +8,7 @@ from app.integrations import questrade, snaptrade
 from app.integrations.questrade import QuestradeAdapter
 from app.integrations.snaptrade import SnapTradeAdapter
 from app.models.connection import BrokerConnection
-from app.services.synchronization import sync_connection
+from app.services.synchronization import run_sync
 
 router = APIRouter(prefix="/api")
 
@@ -24,11 +24,22 @@ def _connection(db: Session, user_id: int, platform: str) -> BrokerConnection:
     return connection
 
 
+@router.get("/connections")
+def list_connections(db: Session = Depends(get_db), user_id: int = Depends(current_user_id)):
+    return [
+        {
+            "platform": c.platform, "status": c.status, "last_error": c.last_error,
+            "last_synced_at": c.last_synced_at.isoformat() + "Z" if c.last_synced_at else None,
+        }
+        for c in db.query(BrokerConnection).filter_by(user_id=user_id).order_by(BrokerConnection.platform)
+    ]
+
+
 @router.post("/sync/questrade")
 async def sync_questrade(db: Session = Depends(get_db), user_id: int = Depends(current_user_id)):
     connection = _connection(db, user_id, questrade.PLATFORM)
     async with httpx.AsyncClient() as client:
-        result = await sync_connection(db, QuestradeAdapter(connection, db, client))
+        result = await run_sync(db, connection, QuestradeAdapter(connection, db, client))
     return vars(result)
 
 
@@ -38,7 +49,10 @@ def snaptrade_connect(
     user_id: int = Depends(current_user_id),
     client=Depends(get_snaptrade_client),
 ):
-    """Register with SnapTrade and return the read-only connection portal URL."""
+    """Register with SnapTrade and return the read-only connection portal URL.
+
+    Wealthsimple (no public API) and other institutions are linked through this portal too.
+    """
     connection = snaptrade.register_user(client, db, user_id)
     return {"redirect_uri": snaptrade.portal_url(client, connection)}
 
@@ -50,4 +64,4 @@ async def sync_snaptrade(
     client=Depends(get_snaptrade_client),
 ):
     connection = _connection(db, user_id, snaptrade.PLATFORM)
-    return vars(await sync_connection(db, SnapTradeAdapter(connection, client)))
+    return vars(await run_sync(db, connection, SnapTradeAdapter(connection, client)))

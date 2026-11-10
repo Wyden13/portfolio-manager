@@ -1,9 +1,17 @@
+import enum
 from datetime import datetime
 
 from sqlalchemy import DateTime, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
+
+
+class ConnectionStatus(str, enum.Enum):
+    PENDING = "pending"  # registered, but no brokerage account linked yet (SnapTrade)
+    ACTIVE = "active"
+    NEEDS_REAUTH = "needs_reauth"  # credentials rejected; the user must connect again
+    ERROR = "error"  # last sync failed for another reason; retried on the next sync
 
 
 class BrokerConnection(Base):
@@ -20,3 +28,6 @@ class BrokerConnection(Base):
     expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     # SnapTrade: the userId registered with SnapTrade.
     external_user_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    status: Mapped[str] = mapped_column(String(16), default=ConnectionStatus.ACTIVE.value)
+    last_error: Mapped[str | None] = mapped_column(String, nullable=True)
+    last_synced_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

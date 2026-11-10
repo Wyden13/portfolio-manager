@@ -8,6 +8,9 @@ message PnLUpdate {
   int64 as_of_ms = 1;                    // server time, unix epoch milliseconds (UTC)
   repeated PositionPnL positions = 2;
   repeated CurrencyTotal totals = 3;
+  // All totals converted to the server's base currency at spot FX. Unset when a rate was missing.
+  CurrencyTotal base_total = 4;
+  map<string, double> fx_rates = 5;      // base units per one unit of each currency
 }
 
 message PositionPnL {
@@ -15,9 +18,10 @@ message PositionPnL {
   string symbol = 2;
   string currency = 3;
   double quantity = 4;
-  double average_cost = 5;
+  double average_cost = 5;                // average_cost and cost_basis are 0 when status == STATUS_NO_COST
   double cost_basis = 6;
-  // price, market_value, unrealized_pnl and unrealized_pct are only meaningful when status == STATUS_OK.
+  // unrealized_pnl and unrealized_pct are only meaningful when status == STATUS_OK;
+  // price and market_value also when status == STATUS_NO_COST.
   double price = 7;
   double market_value = 8;
   double unrealized_pnl = 9;
@@ -25,13 +29,22 @@ message PositionPnL {
   int64 first_buy_ms = 11;               // 0 when unknown
   int64 quote_as_of_ms = 12;             // 0 when no quote
   Status status = 13;
-  bool incomplete_history = 14;          // sells exceeded the stored buys; cost basis may be off
+  bool incomplete_history = 14;          // stored sells exceeded stored buys (so source is broker)
+  Source source = 15;
+}
+
+// Where quantity and cost come from: our stored transactions when they reproduce the broker's
+// quantity, otherwise the broker's own position snapshot.
+enum Source {
+  SOURCE_TRANSACTIONS = 0;
+  SOURCE_BROKER = 1;
 }
 
 enum Status {
   STATUS_OK = 0;
   STATUS_NO_QUOTE = 1;
   STATUS_CURRENCY_MISMATCH = 2;
+  STATUS_NO_COST = 3;                    // priced, but the broker reported no cost basis
 }
 
 // Totals only include positions priced successfully, grouped by currency (no FX conversion).

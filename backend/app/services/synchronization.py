@@ -1,17 +1,30 @@
+import asyncio
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.integrations.base import BrokerageAdapter
+from app.integrations.base import BrokerageAdapter, ReauthRequired
 from app.models.account import AccountRecord
+from app.models.connection import BrokerConnection, ConnectionStatus
 from app.models.position import Position
 from app.models.transaction import Transaction
 
-# Re-fetch this much before the newest stored transaction. Upserts make the overlap harmless
-# and it covers activities the broker back-fills late.
-SYNC_OVERLAP = timedelta(days=1)
+# Re-fetch this much before the previous sync's end. Inserts skip known ids, so the overlap is
+# harmless, and it picks up activities the broker posts late (e.g. after settlement).
+SYNC_OVERLAP = timedelta(days=7)
+
+# Aggregators whose accounts may mirror a directly connected one.
+AGGREGATORS = ("snaptrade",)
+
+# One sync per connection at a time (single process). Concurrent syncs would insert the same
+# transactions twice and race Questrade's single-use refresh token.
+_locks: dict[int, asyncio.Lock] = {}
+
+
+class SyncInProgress(Exception):
+    pass
 
 
 @dataclass
@@ -21,24 +34,27 @@ class SyncResult:
     positions: int = 0
 
 
-def _upsert_account(db: Session, account) -> AccountRecord:
-    record = db.scalar(select(AccountRecord).filter_by(
-        user_id=account.user_id, platform=account.platform, account_number=account.account_number))
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def _upsert_account(db: Session, account, record: AccountRecord | None) -> AccountRecord:
     if record is None:
         record = AccountRecord(user_id=account.user_id, platform=account.platform,
-                               account_number=account.account_number)
+                               external_id=str(account.account_id))
         db.add(record)
-    record.external_id = str(account.account_id)
+    record.account_number = account.account_number
     record.account_type = account.account_type
     record.status = account.status.value
     record.is_primary = account.is_primary
     record.client_account_type = account.client_account_type
+    record.institution = account.institution
+    record.removed_at = None
     db.flush()
     return record
 
 
-def _sync_positions(db: Session, record: AccountRecord, raw_positions) -> None:
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
+def _sync_positions(db: Session, record: AccountRecord, raw_positions, now: datetime) -> None:
     existing = {p.symbol: p for p in db.scalars(select(Position).filter_by(account_id=record.id))}
     current = {p.symbol: p for p in raw_positions}
     for symbol, position in existing.items():
@@ -72,20 +88,84 @@ def _sync_transactions(db: Session, record: AccountRecord, raw_transactions) -> 
     return added
 
 
-async def sync_connection(db: Session, adapter: BrokerageAdapter) -> SyncResult:
-    """Pull accounts, positions and new transactions from the broker into the database."""
-    result = SyncResult()
-    for account in await adapter.get_accounts():
-        record = _upsert_account(db, account)
-        result.accounts += 1
+def _normalize_number(value: str) -> str:
+    return "".join(c for c in value if c.isalnum()).upper()
 
-        raw_positions = await adapter.get_positions(record.external_id)
-        _sync_positions(db, record, raw_positions)
+
+def mark_duplicates(db: Session, user_id: int) -> None:
+    """Flag aggregator accounts that mirror a direct connection (same institution and number)."""
+    accounts = db.scalars(select(AccountRecord).filter_by(user_id=user_id, removed_at=None)).all()
+    direct = {
+        (a.institution.casefold(), _normalize_number(a.account_number)): a.id
+        for a in accounts if a.platform not in AGGREGATORS and a.institution
+    }
+    for a in accounts:
+        if a.platform in AGGREGATORS:
+            a.duplicate_of_id = direct.get((a.institution.casefold(), _normalize_number(a.account_number)))
+
+
+async def sync_connection(db: Session, connection: BrokerConnection, adapter: BrokerageAdapter) -> SyncResult:
+    """Pull accounts, positions and new transactions from the broker into the database.
+
+    All broker calls for an account happen before its writes, so the session holds no pending
+    changes while the adapter may commit a rotated token. Each account commits on its own.
+    """
+    result = SyncResult()
+    now = _utcnow()
+    seen: set[int] = set()
+    for account in await adapter.get_accounts():
+        external_id = str(account.account_id)
+        record = db.scalar(select(AccountRecord).filter_by(
+            user_id=connection.user_id, platform=adapter.platform, external_id=external_id))
+        synced_through = record.transactions_synced_through if record else None
+        start = synced_through - SYNC_OVERLAP if synced_through else None
+
+        raw_positions = await adapter.get_positions(external_id)
+        raw_transactions = await adapter.get_transactions(external_id, start=start, end=now)
+
+        record = _upsert_account(db, account, record)
+        _sync_positions(db, record, raw_positions, now)
+        result.transactions_added += _sync_transactions(db, record, raw_transactions)
+        record.transactions_synced_through = now
+        db.commit()
+        seen.add(record.id)
+        result.accounts += 1
         result.positions += len(raw_positions)
 
-        latest = db.scalar(select(func.max(Transaction.trade_date)).filter_by(account_id=record.id))
-        start = latest - SYNC_OVERLAP if latest else None
-        result.transactions_added += _sync_transactions(
-            db, record, await adapter.get_transactions(record.external_id, start=start))
-        db.commit()
+    for record in db.scalars(select(AccountRecord).filter_by(
+            user_id=connection.user_id, platform=adapter.platform, removed_at=None)):
+        if record.id not in seen:
+            record.removed_at = now
+    mark_duplicates(db, connection.user_id)
+    db.commit()
     return result
+
+
+async def run_sync(db: Session, connection: BrokerConnection, adapter: BrokerageAdapter) -> SyncResult:
+    """sync_connection plus the connection's state transitions, one sync per connection at a time.
+
+    pending/active/error --sync ok--> active (pending while no account is linked)
+                         --credentials rejected--> needs_reauth (left by connecting again)
+                         --other failure--> error
+    """
+    lock = _locks.setdefault(connection.id, asyncio.Lock())
+    if lock.locked():
+        raise SyncInProgress(f"{connection.platform} sync already running")
+    async with lock:
+        try:
+            result = await sync_connection(db, connection, adapter)
+        except ReauthRequired as exc:
+            db.rollback()
+            connection.status, connection.last_error = ConnectionStatus.NEEDS_REAUTH.value, str(exc)
+            db.commit()
+            raise
+        except Exception as exc:
+            db.rollback()
+            connection.status, connection.last_error = ConnectionStatus.ERROR.value, repr(exc)[:500]
+            db.commit()
+            raise
+        connection.status = (ConnectionStatus.ACTIVE if result.accounts else ConnectionStatus.PENDING).value
+        connection.last_error = None
+        connection.last_synced_at = _utcnow()
+        db.commit()
+        return result

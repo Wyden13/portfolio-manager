@@ -7,6 +7,10 @@ from app.models.account import Account
 from app.models.transaction import TransactionKind
 
 
+class ReauthRequired(Exception):
+    """The broker rejected the stored credentials; the user has to connect again."""
+
+
 @dataclass
 class RawTransaction:
     """Broker-agnostic transaction. Quantity and fee are non-negative; kind gives the direction."""

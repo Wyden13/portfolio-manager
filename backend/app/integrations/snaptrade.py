@@ -1,13 +1,14 @@
 import asyncio
-from datetime import date, datetime, timedelta, timezone
+import uuid
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.integrations.base import BrokerageAdapter, RawBalance, RawPosition, RawTransaction
+from app.integrations.base import BrokerageAdapter, RawBalance, RawPosition, RawTransaction, ReauthRequired
 from app.models.account import Account, AccountStatus
-from app.models.connection import BrokerConnection
+from app.models.connection import BrokerConnection, ConnectionStatus
 from app.models.transaction import TransactionKind
 from app.security import decrypt, encrypt
 
@@ -53,7 +54,7 @@ def _to_naive_utc(value) -> datetime:
 
 
 def _currency(value) -> str:
-    return (value or {}).get("code", "") if value else ""
+    return value.get("code", "") if value else ""
 
 
 def parse_activity(item) -> RawTransaction:
@@ -80,11 +81,13 @@ def register_user(client, db: Session, user_id: int) -> BrokerConnection:
     existing = db.query(BrokerConnection).filter_by(user_id=user_id, platform=PLATFORM).one_or_none()
     if existing:
         return existing
-    external_id = f"investiq-{user_id}"
+    # Random suffix: SnapTrade user ids are global to our client id, so a fixed id would collide
+    # across environments (and with itself after a local database reset).
+    external_id = f"investiq-{user_id}-{uuid.uuid4().hex}"
     body = client.authentication.register_snap_trade_user(user_id=external_id).body
     connection = BrokerConnection(
         user_id=user_id, platform=PLATFORM, external_user_id=body["userId"],
-        encrypted_refresh_token=encrypt(body["userSecret"]),
+        encrypted_refresh_token=encrypt(body["userSecret"]), status=ConnectionStatus.PENDING.value,
     )
     db.add(connection)
     db.commit()
@@ -112,8 +115,19 @@ class SnapTradeAdapter(BrokerageAdapter):
             "user_secret": decrypt(connection.encrypted_refresh_token),
         }
 
+    async def _call(self, method, **kwargs):
+        from snaptrade_client import ApiException
+
+        try:
+            response = await asyncio.to_thread(method, **kwargs, **self._creds)
+        except ApiException as exc:
+            if exc.status == 401:
+                raise ReauthRequired("SnapTrade rejected the user secret") from exc
+            raise
+        return response.body
+
     async def get_accounts(self) -> list[Account]:
-        response = await asyncio.to_thread(self.client.account_information.list_user_accounts, **self._creds)
+        body = await self._call(self.client.account_information.list_user_accounts)
         return [
             Account(
                 platform=PLATFORM,
@@ -121,18 +135,16 @@ class SnapTradeAdapter(BrokerageAdapter):
                 account_id=item["id"],
                 account_type=item.get("raw_type") or item.get("account_category") or "",
                 account_number=item["number"],
-                status=_STATUS.get(item.get("status"), AccountStatus.Suspended_readOnly),
+                status=_STATUS.get(item.get("status"), AccountStatus.Unknown),
                 is_primary=False,
-                client_account_type=item.get("institution_name") or "",
+                client_account_type="",
+                institution=item.get("institution_name") or "",
             )
-            for item in response.body
+            for item in body
         ]
 
     async def _holdings(self, account_id):
-        response = await asyncio.to_thread(
-            self.client.account_information.get_user_holdings, account_id=account_id, **self._creds
-        )
-        return response.body
+        return await self._call(self.client.account_information.get_user_holdings, account_id=account_id)
 
     async def get_balances(self, account_id) -> list[RawBalance]:
         holdings = await self._holdings(account_id)
@@ -162,12 +174,10 @@ class SnapTradeAdapter(BrokerageAdapter):
         result: list[RawTransaction] = []
         offset = 0
         while True:
-            response = await asyncio.to_thread(
+            body = await self._call(
                 self.client.account_information.get_account_activities,
-                account_id=account_id, start_date=start_day, end_date=end_day,
-                offset=offset, limit=PAGE_SIZE, **self._creds,
+                account_id=account_id, start_date=start_day, end_date=end_day, offset=offset, limit=PAGE_SIZE,
             )
-            body = response.body
             rows = body if isinstance(body, list) else body.get("data") or []
             result.extend(parse_activity(row) for row in rows)
             total = None if isinstance(body, list) else (body.get("pagination") or {}).get("total")

@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite:///./investiq.db"
     SYNC_INITIAL_LOOKBACK_DAYS: int = 365
     PNL_STREAM_INTERVAL_SECONDS: float = 5
+    SYNC_INTERVAL_MINUTES: float = 60  # background sync of every connection; 0 disables it
+    BASE_CURRENCY: str = "CAD"  # totals are also converted into this at spot FX
 
 
 settings = Settings()

@@ -6,15 +6,18 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from app.proto import pnl_pb2
+from app.services.currency import FxProvider
 from app.services.market_data import QuoteProvider
-from app.services.performance import PnLSnapshot
+from app.services.performance import CurrencyTotal, PnLSnapshot
 from app.services.portfolio import build_pnl, load_holdings
 
 _STATUS = {
     "ok": pnl_pb2.STATUS_OK,
     "no_quote": pnl_pb2.STATUS_NO_QUOTE,
     "currency_mismatch": pnl_pb2.STATUS_CURRENCY_MISMATCH,
+    "no_cost": pnl_pb2.STATUS_NO_COST,
 }
+_SOURCE = {"transactions": pnl_pb2.SOURCE_TRANSACTIONS, "broker": pnl_pb2.SOURCE_BROKER}
 
 
 def _ms(value: datetime | None) -> int:
@@ -25,6 +28,13 @@ def _ms(value: datetime | None) -> int:
 
 def _f(value) -> float:
     return float(value) if value is not None else 0.0
+
+
+def _total(t: CurrencyTotal) -> pnl_pb2.CurrencyTotal:
+    return pnl_pb2.CurrencyTotal(
+        currency=t.currency, cost_basis=_f(t.cost_basis), market_value=_f(t.market_value),
+        unrealized_pnl=_f(t.unrealized_pnl), unrealized_pct=_f(t.unrealized_pct),
+    )
 
 
 def snapshot_to_proto(snapshot: PnLSnapshot) -> pnl_pb2.PnLUpdate:
@@ -38,16 +48,13 @@ def snapshot_to_proto(snapshot: PnLSnapshot) -> pnl_pb2.PnLUpdate:
                 unrealized_pnl=_f(p.unrealized_pnl), unrealized_pct=_f(p.unrealized_pct),
                 first_buy_ms=_ms(p.first_buy_at), quote_as_of_ms=_ms(p.quote_as_of),
                 status=_STATUS[p.status], incomplete_history=p.incomplete_history,
+                source=_SOURCE[p.source],
             )
             for p in snapshot.positions
         ],
-        totals=[
-            pnl_pb2.CurrencyTotal(
-                currency=t.currency, cost_basis=_f(t.cost_basis), market_value=_f(t.market_value),
-                unrealized_pnl=_f(t.unrealized_pnl), unrealized_pct=_f(t.unrealized_pct),
-            )
-            for t in snapshot.totals
-        ],
+        totals=[_total(t) for t in snapshot.totals],
+        base_total=_total(snapshot.base_total) if snapshot.base_total else None,
+        fx_rates={c: float(r) for c, r in snapshot.fx_rates.items()},
     )
 
 
@@ -63,6 +70,7 @@ async def pnl_events(
     user_id: int,
     interval: float,
     max_events: int | None = None,
+    fx: FxProvider | None = None,
 ) -> AsyncIterator[str]:
     """Yield a P&L frame immediately, then one every `interval` seconds until cancelled."""
     sent = 0
@@ -70,10 +78,10 @@ async def pnl_events(
         try:
             with session_factory() as db:
                 holdings = load_holdings(db, user_id)
-            yield encode_event(await build_pnl(holdings, provider))
+            yield encode_event(await build_pnl(holdings, provider, fx))
         except Exception:
-            # Keep the stream alive through a flaky quote source; comments are ignored by clients.
-            yield ": quote provider error\n\n"
+            # Keep the stream alive through a flaky quote source or DB; clients ignore comments.
+            yield ": pnl update failed\n\n"
         sent += 1
         if max_events is not None and sent >= max_events:
             return

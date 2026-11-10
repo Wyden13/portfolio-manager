@@ -7,16 +7,16 @@ import httpx
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.integrations.base import BrokerageAdapter, RawBalance, RawPosition, RawTransaction
+from app.integrations.base import BrokerageAdapter, RawBalance, RawPosition, RawTransaction, ReauthRequired
 from app.models.account import Account, AccountStatus
-from app.models.connection import BrokerConnection
+from app.models.connection import BrokerConnection, ConnectionStatus
 from app.models.transaction import TransactionKind
 from app.security import decrypt, encrypt
 
 PLATFORM = "questrade"
 EXPIRY_BUFFER = timedelta(seconds=60)
 ACTIVITY_WINDOW = timedelta(days=30)  # Questrade rejects activity queries spanning more than 31 days
-CAD_SUFFIXES = (".TO", ".V", ".CN", ".NE")
+CAD_SUFFIXES = (".TO", ".V", ".VN", ".CN", ".NE")
 
 _TYPE_KINDS = {
     "dividends": TransactionKind.DIVIDEND,
@@ -81,7 +81,7 @@ def parse_activities(items: list[dict]) -> list[RawTransaction]:
 
 
 def currency_for_symbol(symbol: str) -> str:
-    # Questrade positions carry no currency; Canadian listings use these suffixes.
+    # Fallback when the symbol lookup has no currency; Canadian listings use these suffixes.
     return "CAD" if symbol.upper().endswith(CAD_SUFFIXES) else "USD"
 
 def build_authorize_url(state: str) -> str:
@@ -128,9 +128,12 @@ def _store_tokens(connection: BrokerConnection, data: dict) -> None:
     connection.expires_at = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(
         seconds=data["expires_in"]
     )
+    connection.status = ConnectionStatus.ACTIVE.value
+    connection.last_error = None
 
 
 class QuestradeAdapter(BrokerageAdapter):
+    platform = PLATFORM
 
     def __init__(self, connection: BrokerConnection, db: Session, client: httpx.AsyncClient):
         self.connection = connection
@@ -145,11 +148,20 @@ class QuestradeAdapter(BrokerageAdapter):
         return now + EXPIRY_BUFFER >= expires_at
 
     async def _refresh(self) -> None:
-        # The refresh token rotates on every use, so commit the new one right away.
-        data = await _token_request(self.client, {
-            "grant_type": "refresh_token",
-            "refresh_token": decrypt(self.connection.encrypted_refresh_token),
-        })
+        # The refresh token rotates on every use, so commit the new one right away. Callers must
+        # not hold uncommitted writes on this session while calling the API (see synchronization).
+        try:
+            data = await _token_request(self.client, {
+                "grant_type": "refresh_token",
+                "refresh_token": decrypt(self.connection.encrypted_refresh_token),
+            })
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code not in (400, 401):
+                raise
+            self.connection.status = ConnectionStatus.NEEDS_REAUTH.value
+            self.connection.last_error = "Questrade rejected the refresh token"
+            self.db.commit()
+            raise ReauthRequired("Questrade needs to be connected again") from exc
         _store_tokens(self.connection, data)
         self.db.add(self.connection)
         self.db.commit()
@@ -178,14 +190,13 @@ class QuestradeAdapter(BrokerageAdapter):
                 account_id=int(item["number"]),
                 account_type=item["type"],
                 account_number=item["number"],
-                status=AccountStatus(item["status"]),
-                is_primary=item["isPrimary"],
-                client_account_type=item["clientAccountType"],
+                status=AccountStatus.parse(item.get("status")),
+                is_primary=item.get("isPrimary", False),
+                client_account_type=item.get("clientAccountType") or "",
+                institution="Questrade",
             )
             for item in data["accounts"]
         ]
-
-    platform = PLATFORM
 
     async def get_balances(self, account_id) -> list[RawBalance]:
         data = await self._get(f"v1/accounts/{account_id}/balances")
@@ -194,17 +205,28 @@ class QuestradeAdapter(BrokerageAdapter):
             for b in data["perCurrencyBalances"]
         ]
 
+    async def _symbol_currencies(self, symbol_ids: list[int]) -> dict[int, str]:
+        """Listing currency per symbolId; empty if the lookup fails (we fall back to the suffix)."""
+        if not symbol_ids:
+            return {}
+        try:
+            data = await self._get(f"v1/symbols?ids={','.join(str(i) for i in sorted(set(symbol_ids)))}")
+        except httpx.HTTPError:
+            return {}
+        return {s["symbolId"]: s["currency"] for s in data.get("symbols") or [] if s.get("currency")}
+
     async def get_positions(self, account_id) -> list[RawPosition]:
         data = await self._get(f"v1/accounts/{account_id}/positions")
+        held = [p for p in data["positions"] if _dec(p["openQuantity"]) != 0]
+        currencies = await self._symbol_currencies([p["symbolId"] for p in held if p.get("symbolId")])
         return [
             RawPosition(
                 symbol=p["symbol"],
                 quantity=_dec(p["openQuantity"]),
                 average_cost=_dec(p["averageEntryPrice"]) if p.get("averageEntryPrice") else None,
-                currency=currency_for_symbol(p["symbol"]),
+                currency=currencies.get(p.get("symbolId")) or currency_for_symbol(p["symbol"]),
             )
-            for p in data["positions"]
-            if _dec(p["openQuantity"]) != 0
+            for p in held
         ]
 
     async def get_transactions(

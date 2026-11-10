@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
-import { allocation, pricedIn, type AllocationBy } from '../lib/aggregate'
+import { useAccounts } from '../hooks/useAccounts'
+import { allocation, valuedIn, type AllocationBy } from '../lib/aggregate'
 import { money } from '../lib/format'
 import { PALETTES, type Theme } from '../lib/theme'
 import type { PortfolioSnapshot } from '../types'
@@ -15,12 +16,13 @@ interface Props { snapshot: PortfolioSnapshot; currency: string; theme: Theme }
 
 export function AllocationPanel({ snapshot, currency, theme }: Props) {
   const [by, setBy] = useState<AllocationBy>('holding')
+  const { label: accountLabel } = useAccounts()
   const slices = useMemo(() => {
-    const all = allocation(pricedIn(snapshot, currency), by)
+    const all = allocation(valuedIn(snapshot, currency), by, accountLabel)
     if (all.length <= MAX_SLICES) return all
     const rest = all.slice(MAX_SLICES - 1)
     return [...all.slice(0, MAX_SLICES - 1), { name: 'Other', value: rest.reduce((a, s) => a + s.value, 0) }]
-  }, [snapshot, currency, by])
+  }, [snapshot, currency, by, accountLabel])
   const total = slices.reduce((a, s) => a + s.value, 0)
 
   const option = useMemo<EChartOption>(() => {
@@ -50,7 +52,7 @@ export function AllocationPanel({ snapshot, currency, theme }: Props) {
       title="Allocation" className="span-4"
       controls={<Segmented label="Group allocation by" value={by} options={GROUPINGS} onChange={setBy} format={(g) => GROUP_LABEL[g]} />}
     >
-      {slices.length === 0 ? <Empty height={HEIGHT}>No priced {currency} holdings.</Empty> : (
+      {slices.length === 0 ? <Empty height={HEIGHT}>No {currency} holdings with a live price.</Empty> : (
         <>
           <EChart option={option} height={HEIGHT} label={`Donut chart of ${currency} allocation by ${by}`} />
           {/* An HTML legend instead of outer labels: those collide and get hidden on small slices. */}

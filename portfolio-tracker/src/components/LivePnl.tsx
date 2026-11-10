@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import type { PnLHistory } from '../hooks/useLivePortfolio'
+import { BASE_KEY, type PnLHistory } from '../hooks/useLivePortfolio'
 import { money, pct, signedMoney, tone } from '../lib/format'
 import type { CurrencyTotal } from '../types'
 
@@ -23,13 +23,43 @@ function Sparkline({ samples, label }: { samples: number[]; label: string }) {
   )
 }
 
-interface Props { totals: CurrencyTotal[]; history: PnLHistory }
+function rateLine(base: string, rates: Record<string, number>): string {
+  return Object.entries(rates)
+    .filter(([c]) => c !== base)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([c, r]) => `1 ${c} = ${r.toFixed(4)} ${base}`)
+    .join(' · ')
+}
 
-/** One card per currency: totals are never summed across currencies. */
-export function LivePnl({ totals, history }: Props) {
+interface Props {
+  totals: CurrencyTotal[]
+  baseTotal: CurrencyTotal | null
+  fxRates: Record<string, number>
+  history: PnLHistory
+}
+
+/** The converted grand total first (when every rate is known), then one card per currency. */
+export function LivePnl({ totals, baseTotal, fxRates, history }: Props) {
   if (totals.length === 0) return null
+  const showBase = baseTotal !== null && totals.length > 1
+  const baseSamples = (history[BASE_KEY] ?? []).map((s) => s.pnl)
   return (
     <div className="cards">
+      {showBase && (
+        <article className={`card headline ${tone(baseTotal.unrealized_pnl)}`} aria-label={`Total portfolio in ${baseTotal.currency}`}>
+          <h3>Total portfolio · {baseTotal.currency}</h3>
+          <p className="big">{money(baseTotal.market_value, baseTotal.currency)}</p>
+          <p className="delta">
+            <span className="sr-only">Unrealized gain or loss </span>
+            {signedMoney(baseTotal.unrealized_pnl, baseTotal.currency)} <span className="pct">{pct(baseTotal.unrealized_pct)}</span>
+          </p>
+          <p className="muted small">
+            Cost basis {money(baseTotal.cost_basis, baseTotal.currency)}
+            <span className="rates">{rateLine(baseTotal.currency, fxRates)}</span>
+          </p>
+          <Sparkline samples={baseSamples} label={`Total unrealized gain or loss, last ${baseSamples.length} updates`} />
+        </article>
+      )}
       {totals.map((t) => {
         const samples = (history[t.currency] ?? []).map((s) => s.pnl)
         return (

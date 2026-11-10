@@ -1,4 +1,8 @@
-export type PositionStatus = 'ok' | 'no_quote' | 'currency_mismatch'
+/** ok: priced with P&L. no_cost: priced, but the broker reported no cost basis (no P&L).
+ *  no_quote / currency_mismatch: no usable live price. */
+export type PositionStatus = 'ok' | 'no_cost' | 'no_quote' | 'currency_mismatch'
+/** Where quantity and cost come from: stored transactions, or the broker's own position report. */
+export type CostSource = 'transactions' | 'broker'
 
 export interface Position {
   account_id: number
@@ -14,6 +18,7 @@ export interface Position {
   status: PositionStatus
   first_buy_at: string | null
   incomplete_history: boolean
+  source: CostSource
 }
 
 export interface CurrencyTotal {
@@ -29,6 +34,10 @@ export interface PortfolioSnapshot {
   as_of: string
   positions: Position[]
   totals: CurrencyTotal[]
+  /** All totals converted into the server's base currency at spot FX; null when a rate is missing. */
+  base_total: CurrencyTotal | null
+  /** Base-currency units per one unit of each currency. */
+  fx_rates: Record<string, number>
 }
 
 export interface Candle {
@@ -44,7 +53,7 @@ export interface Candle {
 export type HistoryRange = '1M' | '3M' | '6M' | '1Y'
 export type HistoryInterval = '1d' | '1wk'
 
-/** Contract for the not-yet-built GET /api/history/{ticker}?range=&interval= */
+/** GET /api/history/{ticker}?range=&interval= */
 export interface HistoryResponse {
   symbol: string
   currency: string
@@ -59,9 +68,50 @@ export interface ValuePoint {
   value: number
 }
 
-/** Contract for the not-yet-built GET /api/portfolio/value?range=&currency= */
+/** GET /api/portfolio/value?range=&currency= */
 export interface ValueHistoryResponse {
   currency: string
   range: HistoryRange
   points: ValuePoint[]
+}
+
+export type TransactionKind = 'BUY' | 'SELL' | 'DIVIDEND' | 'FEE' | 'DEPOSIT' | 'WITHDRAWAL' | 'OTHER'
+
+/** One row of GET /api/transactions. */
+export interface LedgerEntry {
+  id: number
+  account_id: number
+  institution: string
+  platform: string
+  account_type: string
+  /** masked, e.g. ••4567 */
+  account_number: string
+  kind: TransactionKind
+  symbol: string | null
+  /** naive UTC ISO timestamp */
+  trade_date: string
+  quantity: number
+  price: number
+  fee: number
+  gross_amount: number
+  net_amount: number
+  currency: string
+  description: string
+}
+
+export interface LedgerPage {
+  items: LedgerEntry[]
+  total: number
+  limit: number
+  offset: number
+}
+
+/** One row of GET /api/ledger/accounts. */
+export interface LinkedAccount {
+  id: number
+  institution: string
+  platform: string
+  account_type: string
+  account_number: string
+  removed: boolean
 }

@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
-import { gainLossRanking, pricedIn } from '../lib/aggregate'
+import { useAccounts } from '../hooks/useAccounts'
+import { costNote, gainLossRanking, holdingLabels, pricedIn } from '../lib/aggregate'
 import { compactMoney, pct, signedMoney } from '../lib/format'
 import { PALETTES, type Theme } from '../lib/theme'
 import type { PortfolioSnapshot } from '../types'
@@ -14,6 +15,8 @@ interface Props { snapshot: PortfolioSnapshot; currency: string; theme: Theme }
 export function GainLossPanel({ snapshot, currency, theme }: Props) {
   // Ascending, so on a category y-axis (drawn bottom-up) the best performer sits on top.
   const rows = useMemo(() => gainLossRanking(pricedIn(snapshot, currency)), [snapshot, currency])
+  const { label: accountLabel, get: getAccount } = useAccounts()
+  const labels = useMemo(() => holdingLabels(rows, getAccount), [rows, getAccount])
   const height = Math.max(MIN_HEIGHT, rows.length * ROW_HEIGHT + 40)
 
   const option = useMemo<EChartOption>(() => {
@@ -25,12 +28,14 @@ export function GainLossPanel({ snapshot, currency, theme }: Props) {
         backgroundColor: p.surface, borderColor: p.grid, textStyle: { color: p.text },
         formatter: (items: Array<{ dataIndex: number }>) => {
           const r = rows[items[0].dataIndex]
-          return `<b>${r.symbol}</b> · Account ${r.account_id}<br/>${signedMoney(r.unrealized_pnl, currency)} (${pct(r.unrealized_pct)})`
+          const note = costNote(r)
+          return `<b>${r.symbol}</b> · ${accountLabel(r.account_id)}<br/>${signedMoney(r.unrealized_pnl, currency)} (${pct(r.unrealized_pct)})` +
+            (note ? `<br/><span style="opacity:.75">${note}</span>` : '')
         },
       },
       // Horizontal bars: tickers stay readable at any width instead of being skipped or rotated.
       yAxis: {
-        type: 'category', data: rows.map((r) => r.symbol),
+        type: 'category', data: labels,
         axisLabel: { color: p.text, interval: 0 }, axisTick: { show: false }, axisLine: { lineStyle: { color: p.grid } },
       },
       xAxis: {
@@ -44,11 +49,11 @@ export function GainLossPanel({ snapshot, currency, theme }: Props) {
         data: rows.map((r) => ({ value: r.unrealized_pnl, itemStyle: { color: r.unrealized_pnl >= 0 ? p.gain : p.loss } })),
       }],
     }
-  }, [rows, currency, theme])
+  }, [rows, labels, currency, theme, accountLabel])
 
   return (
     <Panel title="Gain / loss by holding" className="span-6">
-      {rows.length === 0 ? <Empty height={MIN_HEIGHT}>No priced {currency} holdings.</Empty> : (
+      {rows.length === 0 ? <Empty height={MIN_HEIGHT}>No {currency} holdings with a gain or loss to show.</Empty> : (
         <EChart option={option} height={height} label={`Bar chart of unrealized gain or loss for ${rows.length} ${currency} holdings`} />
       )}
     </Panel>

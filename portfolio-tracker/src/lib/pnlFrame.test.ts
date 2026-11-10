@@ -1,6 +1,6 @@
 import { create, toBinary } from '@bufbuild/protobuf'
 import { describe, expect, it } from 'vitest'
-import { PnLUpdateSchema, Status } from '../gen/pnl_pb'
+import { PnLUpdateSchema, Source, Status } from '../gen/pnl_pb'
 import { decodePnLFrame } from './pnlFrame'
 
 const toBase64 = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes))
@@ -15,8 +15,11 @@ describe('decodePnLFrame', () => {
         status: Status.OK,
       },
       { accountId: 7n, symbol: 'XYZ', currency: 'CAD', costBasis: 200, status: Status.NO_QUOTE, incompleteHistory: true },
+      { accountId: 8n, symbol: 'TD.TO', currency: 'CAD', quantity: 40, price: 90, marketValue: 3600, status: Status.NO_COST, source: Source.BROKER },
     ],
     totals: [{ currency: 'USD', costBasis: 1000, marketValue: 1500, unrealizedPnl: 500, unrealizedPct: 50 }],
+    baseTotal: { currency: 'CAD', costBasis: 1360, marketValue: 2040, unrealizedPnl: 680, unrealizedPct: 50 },
+    fxRates: { USD: 1.36 },
   })))
 
   it('maps a priced position', () => {
@@ -34,6 +37,19 @@ describe('decodePnLFrame', () => {
       status: 'no_quote', price: null, market_value: null, unrealized_pnl: null,
       first_buy_at: null, incomplete_history: true, cost_basis: 200,
     })
+  })
+
+  it('keeps price but not cost for a holding without a broker cost basis', () => {
+    expect(decodePnLFrame(frame).positions[2]).toMatchObject({
+      status: 'no_cost', source: 'broker', price: 90, market_value: 3600, cost_basis: null, average_cost: null, unrealized_pnl: null,
+    })
+    expect(decodePnLFrame(frame).positions[0].source).toBe('transactions')
+  })
+
+  it('maps the base-currency total and FX rates', () => {
+    const snap = decodePnLFrame(frame)
+    expect(snap.base_total).toEqual({ currency: 'CAD', cost_basis: 1360, market_value: 2040, unrealized_pnl: 680, unrealized_pct: 50 })
+    expect(snap.fx_rates).toEqual({ USD: 1.36 })
   })
 
   it('keeps totals per currency', () => {

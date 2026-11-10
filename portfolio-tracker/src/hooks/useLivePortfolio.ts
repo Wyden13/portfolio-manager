@@ -4,8 +4,9 @@ import { decodePnLFrame } from '../lib/pnlFrame'
 import type { PortfolioSnapshot } from '../types'
 
 export interface PnLSample { t: number; pnl: number }
-/** Recent unrealized P&L per currency, for sparklines. */
+/** Recent unrealized P&L per currency (and BASE_KEY for the converted total), for sparklines. */
 export type PnLHistory = Record<string, PnLSample[]>
+export const BASE_KEY = 'base'
 
 /**
  * connecting: first REST load in flight, nothing to show yet.
@@ -28,11 +29,13 @@ const PNL_EVENT = 'pnl'
 function appendHistory(prev: PnLHistory, snap: PortfolioSnapshot): PnLHistory {
   const t = Date.parse(snap.as_of)
   const next: PnLHistory = { ...prev }
-  for (const total of snap.totals) {
-    if (total.unrealized_pnl === null) continue
-    const samples = prev[total.currency] ?? []
+  const series: Array<[string, number | null]> = snap.totals.map((total) => [total.currency, total.unrealized_pnl])
+  if (snap.base_total) series.push([BASE_KEY, snap.base_total.unrealized_pnl])
+  for (const [key, pnl] of series) {
+    if (pnl === null) continue
+    const samples = prev[key] ?? []
     if (samples.at(-1)?.t === t) continue // the REST snapshot and the first SSE frame can coincide
-    next[total.currency] = [...samples, { t, pnl: total.unrealized_pnl }].slice(-MAX_SAMPLES)
+    next[key] = [...samples, { t, pnl }].slice(-MAX_SAMPLES)
   }
   return next
 }

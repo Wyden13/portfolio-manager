@@ -14,10 +14,11 @@ function Sparkline({ samples, label }: { samples: number[]; label: string }) {
       .join(' ')
   }, [samples])
 
+  // Keep the space reserved until there are two points to draw, so cards don't jump.
+  if (!path) return <div className="spark" aria-hidden="true" />
   return (
     <svg className="spark" viewBox="0 0 100 28" preserveAspectRatio="none" role="img" aria-label={label}>
-      {path ? <path d={path} fill="none" stroke="currentColor" strokeWidth="1.6" vectorEffect="non-scaling-stroke" />
-        : <line x1="0" x2="100" y1="14" y2="14" stroke="currentColor" strokeOpacity=".3" strokeDasharray="3 3" />}
+      <path d={path} fill="none" stroke="currentColor" strokeWidth="1.6" vectorEffect="non-scaling-stroke" />
     </svg>
   )
 }
@@ -28,20 +29,19 @@ interface Props { totals: CurrencyTotal[]; history: PnLHistory }
 export function LivePnl({ totals, history }: Props) {
   if (totals.length === 0) return null
   return (
-    <div className="cards" aria-live="off">
+    <div className="cards">
       {totals.map((t) => {
         const samples = (history[t.currency] ?? []).map((s) => s.pnl)
-        const dir = tone(t.unrealized_pnl)
         return (
-          <article key={t.currency} className={`card ${dir}`} aria-label={`${t.currency} live P&L`}>
-            <h3>{t.currency} portfolio</h3>
+          <article key={t.currency} className={`card ${tone(t.unrealized_pnl)}`} aria-label={`${t.currency} holdings`}>
+            <h3>{t.currency} holdings</h3>
             <p className="big">{money(t.market_value, t.currency)}</p>
             <p className="delta">
-              <span className="sr-only">Unrealized P&L </span>
-              {signedMoney(t.unrealized_pnl, t.currency)} <span className="pct">({pct(t.unrealized_pct)})</span>
+              <span className="sr-only">Unrealized gain or loss </span>
+              {signedMoney(t.unrealized_pnl, t.currency)} <span className="pct">{pct(t.unrealized_pct)}</span>
             </p>
-            <p className="muted small">Cost {money(t.cost_basis, t.currency)}</p>
-            <Sparkline samples={samples} label={`${t.currency} unrealized P&L over the last ${samples.length} updates`} />
+            <p className="muted small">Cost basis {money(t.cost_basis, t.currency)}</p>
+            <Sparkline samples={samples} label={`${t.currency} unrealized gain or loss, last ${samples.length} updates`} />
           </article>
         )
       })}

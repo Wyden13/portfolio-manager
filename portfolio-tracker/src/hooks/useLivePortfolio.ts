@@ -1,90 +1,104 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { fetchPositions } from '../api/client'
 import { mockSnapshot } from '../api/mock'
 import { decodePnLFrame } from '../lib/pnlFrame'
 import type { PortfolioSnapshot } from '../types'
 
-/** `live` = backend REST + SSE, `mock` = backend unreachable so fixtures are streamed instead. */
-export type DataSource = 'loading' | 'live' | 'mock'
-export type StreamState = 'connecting' | 'open' | 'reconnecting' | 'mock'
-
 export interface PnLSample { t: number; pnl: number }
 /** Recent unrealized P&L per currency, for sparklines. */
 export type PnLHistory = Record<string, PnLSample[]>
 
-export interface LivePortfolio {
-  snapshot: PortfolioSnapshot | null
-  source: DataSource
-  stream: StreamState
-  history: PnLHistory
-  error: string | null
-}
+/**
+ * connecting: first REST load in flight, nothing to show yet.
+ * offline:    the REST load failed; nothing to show, the user can retry.
+ * live:       we have a snapshot; `stream` says whether updates are flowing.
+ *             open = SSE connected, reconnecting = the browser is retrying by itself,
+ *             closed = the server refused the stream (no automatic retry).
+ * sample:     backend unreachable, fixtures are streamed instead.
+ */
+export type LiveState =
+  | { status: 'connecting' }
+  | { status: 'offline'; error: string }
+  | { status: 'live'; snapshot: PortfolioSnapshot; history: PnLHistory; stream: StreamState }
+  | { status: 'sample'; snapshot: PortfolioSnapshot; history: PnLHistory }
+
+export type StreamState = 'open' | 'reconnecting' | 'closed'
 
 const MAX_SAMPLES = 60
 const MOCK_INTERVAL_MS = 5000
+// The backend names its SSE events `pnl` (see backend/app/services/streaming.py).
+const PNL_EVENT = 'pnl'
 
 function appendHistory(prev: PnLHistory, snap: PortfolioSnapshot): PnLHistory {
   const t = Date.parse(snap.as_of)
   const next: PnLHistory = { ...prev }
   for (const total of snap.totals) {
     if (total.unrealized_pnl === null) continue
-    next[total.currency] = [...(prev[total.currency] ?? []), { t, pnl: total.unrealized_pnl }].slice(-MAX_SAMPLES)
+    const samples = prev[total.currency] ?? []
+    if (samples.at(-1)?.t === t) continue // the REST snapshot and the first SSE frame can coincide
+    next[total.currency] = [...samples, { t, pnl: total.unrealized_pnl }].slice(-MAX_SAMPLES)
   }
   return next
 }
 
-export function useLivePortfolio(): LivePortfolio {
-  const [state, setState] = useState<LivePortfolio>({
-    snapshot: null, source: 'loading', stream: 'connecting', history: {}, error: null,
-  })
-  const closers = useRef<Array<() => void>>([])
+export function useLivePortfolio(): { state: LiveState; retry: () => void } {
+  const [state, setState] = useState<LiveState>({ status: 'connecting' })
+  const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
     const controller = new AbortController()
-    const push = (snap: PortfolioSnapshot) =>
-      setState((s) => ({ ...s, snapshot: snap, history: appendHistory(s.history, snap) }))
+    const cleanups: Array<() => void> = []
 
-    const startMock = (error: string) => {
+    const push = (status: 'live' | 'sample', snap: PortfolioSnapshot) =>
+      setState((s) => {
+        const history = appendHistory(s.status === 'live' || s.status === 'sample' ? s.history : {}, snap)
+        if (status === 'sample') return { status, snapshot: snap, history }
+        return { status, snapshot: snap, history, stream: s.status === 'live' ? s.stream : 'open' }
+      })
+    const setStream = (stream: StreamState) =>
+      setState((s) => (s.status === 'live' ? { ...s, stream } : s))
+
+    const startSample = () => {
       let tick = 0
-      const emit = () => {
-        push(mockSnapshot(tick++))
-        setState((s) => ({ ...s, source: 'mock', stream: 'mock', error }))
-      }
+      const emit = () => push('sample', mockSnapshot(tick++))
       emit()
       const id = window.setInterval(emit, MOCK_INTERVAL_MS)
-      closers.current.push(() => window.clearInterval(id))
+      cleanups.push(() => window.clearInterval(id))
     }
 
     const startLive = (initial: PortfolioSnapshot) => {
-      push(initial)
-      setState((s) => ({ ...s, source: 'live', error: null }))
+      push('live', initial)
       const es = new EventSource('/api/stream/pnl')
-      es.onopen = () => setState((s) => ({ ...s, stream: 'open' }))
-      es.onmessage = (ev) => {
+      es.onopen = () => setStream('open')
+      es.addEventListener(PNL_EVENT, (ev) => {
         try {
-          push(decodePnLFrame(ev.data))
+          push('live', decodePnLFrame((ev as MessageEvent<string>).data))
         } catch (err) {
-          setState((s) => ({ ...s, error: `Bad stream frame: ${(err as Error).message}` }))
+          // One bad frame shouldn't blank the dashboard; the next one arrives within seconds.
+          console.error('Skipping undecodable P&L frame', err)
         }
-      }
-      // EventSource reconnects by itself; we only surface the state.
-      es.onerror = () => setState((s) => ({ ...s, stream: 'reconnecting' }))
-      closers.current.push(() => es.close())
+      })
+      // EventSource retries on its own unless the server answered with an error (CLOSED).
+      es.onerror = () => setStream(es.readyState === EventSource.CLOSED ? 'closed' : 'reconnecting')
+      cleanups.push(() => es.close())
     }
 
     fetchPositions(controller.signal)
       .then(startLive)
-      .catch((err: Error) => {
-        if (controller.signal.aborted) return
-        startMock(`Backend unreachable (${err.message}); showing sample data.`)
+      .catch(() => {
+        if (!controller.signal.aborted) startSample()
       })
 
-    const close = closers.current
     return () => {
       controller.abort()
-      close.splice(0).forEach((fn) => fn())
+      cleanups.forEach((fn) => fn())
     }
+  }, [attempt])
+
+  const retry = useCallback(() => {
+    setState({ status: 'connecting' })
+    setAttempt((n) => n + 1)
   }, [])
 
-  return state
+  return { state, retry }
 }

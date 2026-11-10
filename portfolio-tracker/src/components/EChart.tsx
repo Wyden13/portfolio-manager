@@ -1,10 +1,13 @@
 import { BarChart, LineChart, PieChart, TreemapChart } from 'echarts/charts'
-import { AriaComponent, GridComponent, TooltipComponent } from 'echarts/components'
+import { AriaComponent, GridComponent, LegendComponent, TooltipComponent } from 'echarts/components'
 import * as echarts from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 import { useEffect, useRef } from 'react'
 
-echarts.use([BarChart, LineChart, PieChart, TreemapChart, GridComponent, TooltipComponent, AriaComponent, CanvasRenderer])
+echarts.use([
+  BarChart, LineChart, PieChart, TreemapChart, GridComponent, LegendComponent, TooltipComponent, AriaComponent,
+  CanvasRenderer,
+])
 
 export type EChartOption = echarts.EChartsCoreOption
 
@@ -33,7 +36,9 @@ export function EChart({ option, label, height = 320 }: Props) {
   }, [])
 
   useEffect(() => {
-    chart.current?.setOption(option, true)
+    // Merge rather than replace, so a price tick animates values in place instead of redrawing the
+    // chart from scratch. Data arrays are replaced wholesale by a merge, so removed rows disappear.
+    chart.current?.setOption(option)
   }, [option])
 
   return <div ref={ref} role="img" aria-label={label} style={{ width: '100%', height }} />

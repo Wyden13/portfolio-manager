@@ -5,6 +5,7 @@
   --muted: #5d6678;
   --border: #e3e6ec;
   --accent: #2563eb;
+  --on-accent: #ffffff;
   --gain: #13803f;
   --loss: #c0392b;
   --shadow: 0 1px 2px rgba(20, 28, 45, 0.06), 0 4px 12px rgba(20, 28, 45, 0.04);
@@ -18,6 +19,7 @@
   --muted: #9aa3b5;
   --border: #2a3142;
   --accent: #6ea0ff;
+  --on-accent: #0b1220;
   --gain: #3ecf86;
   --loss: #ff6b6b;
   --shadow: none;

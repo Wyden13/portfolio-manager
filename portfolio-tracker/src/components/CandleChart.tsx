@@ -4,12 +4,16 @@ import {
 } from 'lightweight-charts'
 import { useEffect, useRef, useState } from 'react'
 import { fetchHistory } from '../api/client'
+import { useAsync } from '../hooks/useAsync'
 import { PALETTES, type Theme } from '../lib/theme'
-import type { HistoryInterval, HistoryRange, HistoryResponse } from '../types'
+import type { Candle, HistoryInterval, HistoryRange } from '../types'
 import { Empty, Panel, Segmented } from './Panel'
 
 const RANGES: readonly HistoryRange[] = ['1M', '3M', '6M', '1Y']
 const INTERVALS: readonly HistoryInterval[] = ['1d', '1wk']
+const INTERVAL_LABEL: Record<HistoryInterval, string> = { '1d': 'Daily', '1wk': 'Weekly' }
+const HEIGHT = 380
+const NO_CANDLES: Candle[] = []
 
 interface Props { symbols: string[]; theme: Theme }
 
@@ -17,20 +21,13 @@ export function CandlePanel({ symbols, theme }: Props) {
   const [symbol, setSymbol] = useState<string | null>(null)
   const [range, setRange] = useState<HistoryRange>('6M')
   const [interval, setInterval_] = useState<HistoryInterval>('1d')
-  const [data, setData] = useState<HistoryResponse | null>(null)
-  const [error, setError] = useState<string | null>(null)
 
-  // Fall back to the first holding until the user picks one, and when the picked one disappears.
+  // Follow the first holding until the user picks one, and when the picked one disappears.
   const active = symbol && symbols.includes(symbol) ? symbol : symbols[0] ?? null
-
-  useEffect(() => {
-    if (!active) return
-    const controller = new AbortController()
-    fetchHistory(active, range, interval, controller.signal)
-      .then((d) => { setData(d); setError(null) })
-      .catch((e: Error) => { if (!controller.signal.aborted) setError(e.message) })
-    return () => controller.abort()
-  }, [active, range, interval])
+  const history = useAsync(`${active}|${range}|${interval}`, (signal) =>
+    active ? fetchHistory(active, range, interval, signal) : Promise.resolve(null))
+  const candleData = history.status === 'ready' ? history.data?.candles ?? NO_CANDLES : NO_CANDLES
+  const showChart = history.status === 'ready' && candleData.length > 0
 
   const host = useRef<HTMLDivElement>(null)
   const chart = useRef<IChartApi | null>(null)
@@ -40,7 +37,7 @@ export function CandlePanel({ symbols, theme }: Props) {
   useEffect(() => {
     const el = host.current
     if (!el) return
-    const c = createChart(el, { autoSize: true, height: 380 })
+    const c = createChart(el, { autoSize: true })
     candles.current = c.addSeries(CandlestickSeries, { borderVisible: false })
     volume.current = c.addSeries(HistogramSeries, { priceFormat: { type: 'volume' }, priceScaleId: '' })
     volume.current.priceScale().applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } })
@@ -66,40 +63,41 @@ export function CandlePanel({ symbols, theme }: Props) {
   }, [theme])
 
   useEffect(() => {
-    if (!data) return
     const p = PALETTES[theme]
-    candles.current?.setData(data.candles.map((c) => ({
+    candles.current?.setData(candleData.map((c) => ({
       time: c.time as UTCTimestamp, open: c.open, high: c.high, low: c.low, close: c.close,
     })))
-    volume.current?.setData(data.candles.map((c) => ({
+    volume.current?.setData(candleData.map((c) => ({
       time: c.time as UTCTimestamp, value: c.volume,
-      color: (c.close >= c.open ? p.candleUp : p.candleDown) + '88',
+      color: (c.close >= c.open ? p.candleUp : p.candleDown) + '66',
     })))
     chart.current?.timeScale().fitContent()
-  }, [data, theme])
+  }, [candleData, theme])
 
   return (
     <Panel
       title="Price history" className="span-12"
-      note="Sample OHLC data — the backend has no history endpoint yet."
-      controls={
+      controls={active && (
         <>
           <label className="select">
             <span className="sr-only">Ticker</span>
-            <select value={active ?? ''} onChange={(e) => setSymbol(e.target.value)} disabled={!active}>
+            <select value={active} onChange={(e) => setSymbol(e.target.value)}>
               {symbols.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
           </label>
           <Segmented label="Time range" value={range} options={RANGES} onChange={setRange} />
-          <Segmented label="Candle interval" value={interval} options={INTERVALS} onChange={setInterval_} />
+          <Segmented label="Candle interval" value={interval} options={INTERVALS} onChange={setInterval_} format={(i) => INTERVAL_LABEL[i]} />
         </>
-      }
+      )}
     >
-      {!active && <Empty>Add a holding to see its price history.</Empty>}
-      {error && <Empty>Couldn’t load history: {error}</Empty>}
+      {!active ? <Empty height={HEIGHT}>No holdings to chart.</Empty>
+        : history.status === 'loading' ? <Empty height={HEIGHT}>Loading…</Empty>
+        : history.status === 'error' ? <Empty height={HEIGHT} tone="error">Price history for {active} is unavailable right now.</Empty>
+        : !showChart && <Empty height={HEIGHT}>No price history for {active} in this period.</Empty>}
+      {/* The chart stays mounted (it is expensive to rebuild) and is only hidden between loads. */}
       <div
-        ref={host} role="img" hidden={!active}
-        aria-label={`Candlestick chart with volume for ${active ?? 'no ticker'}, ${range} range, ${interval} candles`}
+        ref={host} role="img" hidden={!showChart} style={{ height: HEIGHT }}
+        aria-label={`Candlestick chart with volume for ${active ?? 'no ticker'}, ${range} range, ${INTERVAL_LABEL[interval].toLowerCase()} candles`}
       />
     </Panel>
   )

@@ -45,14 +45,18 @@ export function storeTheme(theme: Theme) {
 }
 
 // Treemap tiles: white labels sit on all of these at >= 4.5:1 contrast, in both themes.
-const NEUTRAL: [number, number, number] = [0x5b, 0x65, 0x77]
-const STRONG_GAIN: [number, number, number] = [0x14, 0x7a, 0x3d]
-const STRONG_LOSS: [number, number, number] = [0xb8, 0x32, 0x27]
-const FULL_SCALE_PCT = 15
+type Rgb = [number, number, number]
+const NEUTRAL: Rgb = [0x5b, 0x65, 0x77]
+const GAIN: [Rgb, Rgb] = [[0x2e, 0x7d, 0x4f], [0x12, 0x5a, 0x32]] // small -> large gain
+const LOSS: [Rgb, Rgb] = [[0xb8, 0x4a, 0x40], [0x8c, 0x1c, 0x17]] // small -> large loss
+const FLAT_PCT = 0.5
+const FULL_SCALE_PCT = 20
 
+/** Diverging scale without a muddy middle: grey only when flat, otherwise a shade of green/red. */
 export function tileColor(pct: number): string {
+  if (Math.abs(pct) < FLAT_PCT) return `rgb(${NEUTRAL.join(', ')})`
+  const [from, to] = pct > 0 ? GAIN : LOSS
   const k = Math.min(Math.abs(pct) / FULL_SCALE_PCT, 1)
-  const to = pct >= 0 ? STRONG_GAIN : STRONG_LOSS
-  const c = NEUTRAL.map((n, i) => Math.round(n + (to[i] - n) * k))
+  const c = from.map((n, i) => Math.round(n + (to[i] - n) * k))
   return `rgb(${c[0]}, ${c[1]}, ${c[2]})`
 }

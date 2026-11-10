@@ -1,31 +1,21 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { fetchValueHistory } from '../api/client'
-import { totalFor } from '../lib/aggregate'
-import { money } from '../lib/format'
+import { useAsync } from '../hooks/useAsync'
+import { compactMoney, money } from '../lib/format'
 import { PALETTES, type Theme } from '../lib/theme'
-import type { HistoryRange, PortfolioSnapshot, ValueHistoryResponse } from '../types'
+import type { HistoryRange } from '../types'
 import { EChart, type EChartOption } from './EChart'
 import { Empty, Panel, Segmented } from './Panel'
 
 const RANGES: readonly HistoryRange[] = ['1M', '3M', '6M', '1Y']
+const HEIGHT = 300
 
-interface Props { snapshot: PortfolioSnapshot; currency: string; theme: Theme }
+interface Props { currency: string; theme: Theme }
 
-export function ValuePanel({ snapshot, currency, theme }: Props) {
+export function ValuePanel({ currency, theme }: Props) {
   const [range, setRange] = useState<HistoryRange>('3M')
-  const [data, setData] = useState<ValueHistoryResponse | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  // The series is anchored to today's value; depend on the number, not the snapshot object, so a
-  // 5s stream tick doesn't refetch the whole history.
-  const current = Math.round(totalFor(snapshot, currency)?.market_value ?? 0)
-
-  useEffect(() => {
-    const controller = new AbortController()
-    fetchValueHistory(currency, range, current, controller.signal)
-      .then((d) => { setData(d); setError(null) })
-      .catch((e: Error) => { if (!controller.signal.aborted) setError(e.message) })
-    return () => controller.abort()
-  }, [currency, range, current])
+  const history = useAsync(`${currency}|${range}`, (signal) => fetchValueHistory(currency, range, signal))
+  const points = history.status === 'ready' ? history.data.points : null
 
   const option = useMemo<EChartOption>(() => {
     const p = PALETTES[theme]
@@ -35,29 +25,33 @@ export function ValuePanel({ snapshot, currency, theme }: Props) {
         trigger: 'axis', backgroundColor: p.surface, borderColor: p.grid, textStyle: { color: p.text },
         valueFormatter: (v: number) => money(v, currency),
       },
-      xAxis: { type: 'time', axisLabel: { color: p.muted }, axisLine: { lineStyle: { color: p.grid } } },
+      xAxis: {
+        type: 'time', splitNumber: 5,
+        axisLabel: { color: p.muted, hideOverlap: true, formatter: { year: '{yyyy}', month: '{MMM}', day: '{MMM} {d}' } },
+        axisLine: { lineStyle: { color: p.grid } }, axisTick: { show: false },
+      },
       yAxis: {
-        type: 'value', scale: true, splitLine: { lineStyle: { color: p.grid } },
-        axisLabel: { color: p.muted, formatter: (v: number) => money(v, currency).replace(/\.00$/, '') },
+        type: 'value', scale: true, splitNumber: 4, splitLine: { lineStyle: { color: p.grid } },
+        axisLabel: { color: p.muted, formatter: (v: number) => compactMoney(v, currency) },
       },
       series: [{
-        type: 'line', name: 'Market value', showSymbol: false, smooth: false,
+        type: 'line', name: 'Market value', showSymbol: false,
         lineStyle: { color: p.accent, width: 2 },
-        areaStyle: { color: p.accent, opacity: 0.14 },
-        data: (data?.points ?? []).map((pt) => [pt.time * 1000, pt.value]),
+        areaStyle: { color: p.accent, opacity: 0.12 },
+        data: (points ?? []).map((pt) => [pt.time * 1000, pt.value]),
       }],
     }
-  }, [data, currency, theme])
+  }, [points, currency, theme])
 
   return (
     <Panel
       title="Portfolio value" className="span-6"
-      note="Sample history — the backend has no value-over-time endpoint yet."
       controls={<Segmented label="Time range" value={range} options={RANGES} onChange={setRange} />}
     >
-      {error ? <Empty>Couldn’t load value history: {error}</Empty>
-        : !data ? <Empty>Loading…</Empty>
-        : <EChart option={option} height={300} label={`Area chart of ${currency} portfolio value over ${range}`} />}
+      {history.status === 'loading' ? <Empty height={HEIGHT}>Loading…</Empty>
+        : history.status === 'error' ? <Empty height={HEIGHT} tone="error">Value history is unavailable right now.</Empty>
+        : history.data.points.length === 0 ? <Empty height={HEIGHT}>No value history for this period.</Empty>
+        : <EChart option={option} height={HEIGHT} label={`Area chart of ${currency} portfolio value over ${range}`} />}
     </Panel>
   )
 }

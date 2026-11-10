@@ -2,7 +2,7 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.api.accounts import current_user_id
+from app.api.accounts import current_user_id, get_http_client
 from app.database import get_db
 from app.integrations import questrade, snaptrade
 from app.integrations.questrade import QuestradeAdapter
@@ -36,11 +36,13 @@ def list_connections(db: Session = Depends(get_db), user_id: int = Depends(curre
 
 
 @router.post("/sync/questrade")
-async def sync_questrade(db: Session = Depends(get_db), user_id: int = Depends(current_user_id)):
+async def sync_questrade(
+    db: Session = Depends(get_db),
+    user_id: int = Depends(current_user_id),
+    client: httpx.AsyncClient = Depends(get_http_client),
+):
     connection = _connection(db, user_id, questrade.PLATFORM)
-    async with httpx.AsyncClient() as client:
-        result = await run_sync(db, connection, QuestradeAdapter(connection, db, client))
-    return vars(result)
+    return vars(await run_sync(db, connection, QuestradeAdapter(connection, db, client)))
 
 
 @router.post("/snaptrade/connect")

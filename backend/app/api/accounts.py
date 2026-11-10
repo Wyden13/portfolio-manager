@@ -21,6 +21,12 @@ def current_user_id() -> int:
     return 1
 
 
+async def get_http_client():
+    """HTTP client for broker REST calls (a dependency so it can be swapped out)."""
+    async with httpx.AsyncClient() as client:
+        yield client
+
+
 @router.get("/questrade/connect")
 def connect():
     state = secrets.token_urlsafe(32)
@@ -36,12 +42,12 @@ async def callback(
     oauth_state: str | None = Cookie(default=None, alias=STATE_COOKIE),
     db: Session = Depends(get_db),
     user_id: int = Depends(current_user_id),
+    client: httpx.AsyncClient = Depends(get_http_client),
 ):
     if not oauth_state or not secrets.compare_digest(state, oauth_state):
         raise HTTPException(status_code=400, detail="Invalid OAuth state")
 
-    async with httpx.AsyncClient() as client:
-        await questrade.exchange_code(code, user_id, db, client)
+    await questrade.exchange_code(code, user_id, db, client)
 
     response = RedirectResponse("/api/accounts")
     response.delete_cookie(STATE_COOKIE)
@@ -52,6 +58,7 @@ async def callback(
 async def list_accounts(
     db: Session = Depends(get_db),
     user_id: int = Depends(current_user_id),
+    client: httpx.AsyncClient = Depends(get_http_client),
 ):
     connection = (
         db.query(BrokerConnection).filter_by(user_id=user_id, platform=questrade.PLATFORM).one_or_none()
@@ -59,6 +66,5 @@ async def list_accounts(
     if connection is None:
         raise HTTPException(status_code=404, detail="Questrade is not connected")
 
-    async with httpx.AsyncClient() as client:
-        accounts = await QuestradeAdapter(connection, db, client).get_accounts()
+    accounts = await QuestradeAdapter(connection, db, client).get_accounts()
     return [{**asdict(a), "status": a.status.value} for a in accounts]

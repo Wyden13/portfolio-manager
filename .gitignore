@@ -8,3 +8,6 @@ __pycache__/
 venv/
 *.db
 *.sqlite3
+TODO.md
+AGENTS.md
+RESEARCH.md

@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 
 from app.models.position import Position
@@ -162,3 +162,36 @@ def convert_totals(totals: list[CurrencyTotal], rates: dict[str, Decimal], base:
     cost = sum((t.cost_basis * rates[t.currency.upper()] for t in totals), ZERO)
     value = sum((t.market_value * rates[t.currency.upper()] for t in totals), ZERO)
     return CurrencyTotal(base, cost, value, value - cost, _pct(value - cost, cost))
+
+
+def value_history(
+    holdings: list[Holding], transactions: list[Transaction], closes: dict[str, dict[date, Decimal]],
+) -> list[tuple[date, Decimal]]:
+    """Daily market value of today's holdings, replayed backwards through the stored trades.
+
+    Each holding's quantity on a day is today's (reconciled) quantity minus the buys and plus
+    the sells after that day; before the oldest stored trade it stays flat. Values use each
+    symbol's close, carried forward over days it didn't trade. A symbol counts from its first close.
+    """
+    trades: dict[tuple[int, str], list[tuple[date, Decimal]]] = {}
+    for t in transactions:
+        if t.kind in (TransactionKind.BUY, TransactionKind.SELL) and t.symbol:
+            signed = t.quantity if t.kind == TransactionKind.BUY else -t.quantity
+            trades.setdefault((t.account_id, t.symbol), []).append((t.trade_date.date(), signed))
+
+    days = sorted({d for series in closes.values() for d in series})
+    last_close: dict[str, Decimal] = {}
+    points = []
+    for day in days:
+        for symbol, series in closes.items():
+            if day in series:
+                last_close[symbol] = series[day]
+        value = ZERO
+        for h in holdings:
+            close = last_close.get(h.symbol)
+            if close is None:
+                continue
+            later = sum((q for d, q in trades.get((h.account_id, h.symbol), []) if d > day), ZERO)
+            value += max(h.quantity - later, ZERO) * close
+        points.append((day, value))
+    return points

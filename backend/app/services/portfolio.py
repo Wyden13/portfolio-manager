@@ -14,21 +14,25 @@ from app.services.performance import (
 )
 
 
-def load_holdings(db: Session, user_id: int) -> list[Holding]:
-    """Holdings in the user's live, non-duplicate accounts, reconciled against the broker snapshot."""
+def load_trades(db: Session, user_id: int) -> tuple[list[Holding], list[Transaction]]:
+    """Reconciled holdings in the user's live, non-duplicate accounts, and the trades behind them."""
     counted = (
         select(AccountRecord.id)
         .where(AccountRecord.user_id == user_id, AccountRecord.removed_at.is_(None),
                AccountRecord.duplicate_of_id.is_(None))
     )
-    transactions = db.scalars(
+    transactions = list(db.scalars(
         select(Transaction).where(
             Transaction.account_id.in_(counted),
             Transaction.kind.in_([TransactionKind.BUY.value, TransactionKind.SELL.value]),
         )
-    ).all()
+    ))
     snapshot = db.scalars(select(Position).where(Position.account_id.in_(counted))).all()
-    return reconcile(compute_holdings(list(transactions)), list(snapshot))
+    return reconcile(compute_holdings(transactions), list(snapshot)), transactions
+
+
+def load_holdings(db: Session, user_id: int) -> list[Holding]:
+    return load_trades(db, user_id)[0]
 
 
 async def build_pnl(

@@ -4,7 +4,7 @@ import contextlib
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from app.api import accounts, positions, stream, sync, transactions
+from app.api import accounts, history, positions, stream, sync, transactions
 from app.config import settings
 from app.integrations.base import ReauthRequired
 from app.services.scheduler import run_scheduler
@@ -25,7 +25,7 @@ async def lifespan(app: FastAPI):
 
 # Schema is managed by Alembic: run `alembic upgrade head` before starting.
 app = FastAPI(title="InvestIQ", lifespan=lifespan)
-for module in (accounts, sync, transactions, positions, stream):
+for module in (accounts, sync, transactions, positions, history, stream):
     app.include_router(module.router)
 
 

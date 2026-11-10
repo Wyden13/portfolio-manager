@@ -1,7 +1,9 @@
 import asyncio
+import calendar
+import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 
 # Broker ticker -> Yahoo ticker for one-off differences the rules in to_yahoo_symbol miss.
@@ -22,6 +24,32 @@ class Quote:
     price: Decimal
     currency: str
     as_of: datetime  # naive UTC time we fetched it
+
+
+def day_timestamp(day: date) -> int:
+    """Unix seconds of the day's midnight UTC (what daily charts key bars on)."""
+    return calendar.timegm(day.timetuple())
+
+
+@dataclass
+class Candle:
+    day: date  # the trading day (exchange-local date)
+    open: Decimal
+    high: Decimal
+    low: Decimal
+    close: Decimal
+    volume: int
+
+    @property
+    def time(self) -> int:
+        return day_timestamp(self.day)
+
+
+@dataclass
+class PriceHistory:
+    symbol: str
+    currency: str
+    candles: list[Candle]
 
 
 def to_yahoo_symbol(symbol: str) -> str:
@@ -54,8 +82,19 @@ class QuoteProvider(ABC):
         """Return quotes for the symbols that could be priced; unknown symbols are omitted."""
 
 
-class YFinanceProvider(QuoteProvider):
+class HistoryProvider(ABC):
+    """Source of historical OHLC bars."""
+
+    @abstractmethod
+    async def get_history(self, symbol: str, start: date, end: date, interval: str) -> PriceHistory:
+        """Bars from start to end inclusive; interval is "1d" or "1wk". Empty candles if unknown."""
+
+
+class YFinanceProvider(QuoteProvider, HistoryProvider):
     """Unofficial Yahoo Finance via yfinance. Fine for prototyping, may rate-limit or break."""
+
+    # Charts refetch on every range switch; keep Yahoo calls down without serving stale bars long.
+    HISTORY_TTL_SECONDS = 60
 
     def __init__(self, ticker_factory=None):
         if ticker_factory is None:
@@ -63,6 +102,7 @@ class YFinanceProvider(QuoteProvider):
 
             ticker_factory = yfinance.Ticker
         self._ticker = ticker_factory
+        self._history_cache: dict[tuple, tuple[float, PriceHistory]] = {}
 
     def _fetch(self, symbol: str) -> Quote | None:
         try:
@@ -85,3 +125,31 @@ class YFinanceProvider(QuoteProvider):
         unique = sorted(set(symbols))
         results = await asyncio.gather(*(asyncio.to_thread(self._fetch, s) for s in unique))
         return {s: q for s, q in zip(unique, results) if q is not None}
+
+    def _fetch_history(self, symbol: str, start: date, end: date, interval: str) -> PriceHistory:
+        empty = PriceHistory(symbol, "", [])
+        try:
+            ticker = self._ticker(to_yahoo_symbol(symbol))
+            # yfinance's end is exclusive.
+            frame = ticker.history(start=start, end=end + timedelta(days=1), interval=interval, auto_adjust=False)
+            currency = ticker.fast_info["currency"] or ""
+        except Exception:
+            return empty
+        candles = []
+        for when, row in frame.iterrows():
+            values = [row["Open"], row["High"], row["Low"], row["Close"]]
+            if any(v is None or v != v for v in values):  # NaN rows for halted days
+                continue
+            ohlc = [to_major_unit(Decimal(str(v)), currency)[0] for v in values]
+            candles.append(Candle(when.date(), *ohlc, int(row["Volume"] or 0)))
+        return PriceHistory(symbol, to_major_unit(Decimal(0), currency)[1], candles)
+
+    async def get_history(self, symbol: str, start: date, end: date, interval: str) -> PriceHistory:
+        key = (symbol, start, end, interval)
+        cached = self._history_cache.get(key)
+        if cached and time.monotonic() - cached[0] < self.HISTORY_TTL_SECONDS:
+            return cached[1]
+        history = await asyncio.to_thread(self._fetch_history, symbol, start, end, interval)
+        if history.candles:
+            self._history_cache[key] = (time.monotonic(), history)
+        return history

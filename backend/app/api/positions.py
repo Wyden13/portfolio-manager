@@ -4,20 +4,28 @@ from sqlalchemy.orm import Session
 from app.api.accounts import current_user_id
 from app.database import get_db
 from app.services.currency import FxProvider, QuoteFxProvider
-from app.services.market_data import QuoteProvider, YFinanceProvider
+from app.services.market_data import HistoryProvider, QuoteProvider, YFinanceProvider
 from app.services.performance import CurrencyTotal
 from app.services.portfolio import build_pnl, load_holdings
 
 router = APIRouter(prefix="/api")
 
-_provider: QuoteProvider | None = None
+_provider: YFinanceProvider | None = None
 
 
-def get_quote_provider() -> QuoteProvider:
+def _yfinance() -> YFinanceProvider:
     global _provider
     if _provider is None:
         _provider = YFinanceProvider()
     return _provider
+
+
+def get_quote_provider() -> QuoteProvider:
+    return _yfinance()
+
+
+def get_history_provider() -> HistoryProvider:
+    return _yfinance()
 
 
 def get_fx_provider(quotes: QuoteProvider = Depends(get_quote_provider)) -> FxProvider:

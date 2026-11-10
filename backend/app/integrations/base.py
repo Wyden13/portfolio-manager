@@ -1,9 +1,10 @@
 from abc import ABC, abstractmethod
+from investiq.backend.app.models.account import Account
 
-class BrokerageAdaptor(ABC):
+class BrokerageAdapter(ABC):
 
     @abstractmethod
-    async def get_accounts(self):
+    async def get_accounts(self) -> list[Account]:
         pass
 
     @abstractmethod
@@ -11,9 +12,9 @@ class BrokerageAdaptor(ABC):
         pass
 
     @abstractmethod
-    async def get_position(self,account_id):
+    async def get_positions(self, account_id):
         pass
 
     @abstractmethod
-    async def get_transactions(self,account_id):
+    async def get_transactions(self, account_id):
         pass

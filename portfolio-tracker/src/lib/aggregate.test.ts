@@ -1,10 +1,25 @@
 import { describe, expect, it } from 'vitest'
-import { mockSnapshot } from '../api/mock'
+import type { PortfolioSnapshot, Position } from '../types'
 import { allocation, currenciesOf, gainLossRanking, pricedIn } from './aggregate'
 import { tileColor } from './theme'
 
+function position(account_id: number, symbol: string, currency: string, cost: number, value: number): Position {
+  return {
+    account_id, symbol, currency, quantity: 1, average_cost: cost, cost_basis: cost, price: value,
+    market_value: value, unrealized_pnl: value - cost, unrealized_pct: ((value - cost) / cost) * 100,
+    status: 'ok', first_buy_at: null, incomplete_history: false,
+  }
+}
+
 describe('aggregate', () => {
-  const snap = mockSnapshot()
+  const snap: PortfolioSnapshot = {
+    as_of: '2026-01-01T00:00:00Z',
+    positions: [
+      position(1, 'AAPL', 'USD', 100, 150), position(1, 'MSFT', 'USD', 200, 180), position(2, 'KO', 'USD', 50, 60),
+      position(3, 'RY.TO', 'CAD', 100, 120),
+    ],
+    totals: [],
+  }
 
   it('lists currencies and never mixes them', () => {
     expect(currenciesOf(snap)).toEqual(['CAD', 'USD'])

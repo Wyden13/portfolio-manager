@@ -6,7 +6,7 @@ import { LivePnl } from './components/LivePnl'
 import { Empty, Segmented } from './components/Panel'
 import { TreemapPanel } from './components/TreemapChart'
 import { ValuePanel } from './components/ValueChart'
-import { useLivePortfolio, type LiveState } from './hooks/useLivePortfolio'
+import { useLivePortfolio, type LiveState, type PnLHistory } from './hooks/useLivePortfolio'
 import { useTheme } from './hooks/useTheme'
 import { currenciesOf } from './lib/aggregate'
 import { plural } from './lib/format'
@@ -18,7 +18,6 @@ function connectionBadge(state: LiveState): { label: string; tone: string } {
   switch (state.status) {
     case 'connecting': return { label: 'Connecting', tone: 'pending' }
     case 'offline': return { label: 'Offline', tone: 'down' }
-    case 'sample': return { label: 'Sample data', tone: 'pending' }
     case 'live':
       return state.stream === 'open' ? { label: 'Live', tone: 'up' }
         : state.stream === 'reconnecting' ? { label: 'Reconnecting', tone: 'pending' }
@@ -40,7 +39,7 @@ function ThemeIcon({ theme }: { theme: Theme }) {
 }
 
 function Dashboard({ snapshot, history, theme }: {
-  snapshot: PortfolioSnapshot; history: Extract<LiveState, { status: 'live' }>['history']; theme: Theme
+  snapshot: PortfolioSnapshot; history: PnLHistory; theme: Theme
 }) {
   const currencies = useMemo(() => currenciesOf(snapshot), [snapshot])
   const [picked, setPicked] = useState<string | null>(null)
@@ -102,13 +101,13 @@ function App() {
         {state.status === 'offline' && (
           <div className="state offline" role="alert">
             <p className="offline-title">Can’t reach the InvestIQ server</p>
-            <p className="muted small">{state.error}</p>
+            <p className="muted small" title={state.error}>Your portfolio will appear as soon as the connection is back.</p>
             <button type="button" className="btn" onClick={retry}>Try again</button>
           </div>
         )}
-        {(state.status === 'live' || state.status === 'sample') && (
+        {state.status === 'live' && (
           <>
-            {state.status === 'live' && state.stream === 'closed' && (
+            {state.stream === 'closed' && (
               <p className="banner warn" role="alert">
                 Live updates stopped. <button type="button" className="link-btn" onClick={retry}>Reconnect</button>
               </p>

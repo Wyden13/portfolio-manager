@@ -153,5 +153,5 @@ async def test_minor_unit_quotes_are_converted_not_mistaken_for_the_major_unit()
 
 
 def test_yahoo_symbols():
-    assert [to_yahoo_symbol(s) for s in ("ry.to", "BRK.B", "BBD.B.TO", "ABC.VN", "ABC.V", "AAPL")] == [
-        "RY.TO", "BRK-B", "BBD-B.TO", "ABC.V", "ABC.V", "AAPL"]
+    assert [to_yahoo_symbol(s) for s in ("ry.to", "BRK.B", "BBD.B.TO", "ABC.VN", "ABC.V", "AAPL", "VOD.L", "REI.UN.TO")] == [
+        "RY.TO", "BRK-B", "BBD-B.TO", "ABC.V", "ABC.V", "AAPL", "VOD.L", "REI-UN.TO"]

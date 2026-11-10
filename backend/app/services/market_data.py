@@ -7,7 +7,11 @@ from decimal import Decimal
 # Broker ticker -> Yahoo ticker for one-off differences the rules in to_yahoo_symbol miss.
 YAHOO_OVERRIDES: dict[str, str] = {}
 # Broker exchange suffix -> Yahoo suffix. Questrade writes TSX Venture as .VN; Yahoo uses .V.
-_SUFFIXES = {".TO": ".TO", ".V": ".V", ".VN": ".V", ".CN": ".CN", ".NE": ".NE"}
+# Foreign listings use Yahoo's own suffixes; without them a dot would read as a share class.
+_SUFFIXES = {".TO": ".TO", ".V": ".V", ".VN": ".V", ".CN": ".CN", ".NE": ".NE"} | {
+    s: s for s in (".L", ".DE", ".F", ".PA", ".AS", ".BR", ".LS", ".MI", ".MC", ".SW", ".VI", ".ST",
+                   ".OL", ".CO", ".HE", ".IR", ".HK", ".T", ".AX", ".NZ", ".SI", ".KS", ".TW", ".SA", ".MX")
+}
 # Yahoo quotes some listings in a currency's minor unit (LSE in pence, JSE in cents).
 _MINOR_UNITS = {"GBp": ("GBP", 100), "GBX": ("GBP", 100), "ZAc": ("ZAR", 100), "ILA": ("ILS", 100)}
 

@@ -13,10 +13,21 @@ Nothing here is imported by the app; the only seams used are FastAPI dependency 
 import argparse
 import asyncio
 import os
+import socket
+import sys
 from pathlib import Path
 
 BACKEND = Path(__file__).resolve().parent.parent
 DEMO_DB = BACKEND / "demo.db"
+
+
+def _port_free(host: str, port: int) -> bool:
+    with socket.socket() as sock:
+        try:
+            sock.bind((host, port))
+        except OSError:
+            return False
+    return True
 
 
 def _configure_environment() -> None:
@@ -92,6 +103,9 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=7, help="same seed, same portfolio and price history")
     parser.add_argument("--tick", type=float, default=1.0, help="seconds between simulated price moves")
     args = parser.parse_args()
+    # Check before resetting demo.db: another server may be using it.
+    if not _port_free(args.host, args.port):
+        sys.exit(f"Port {args.port} is already in use (another demo running?). Stop it or pass --port.")
     _configure_environment()
     _migrate()
     asyncio.run(_main(args))

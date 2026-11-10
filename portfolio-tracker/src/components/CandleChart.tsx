@@ -43,7 +43,18 @@ export function CandlePanel({ symbols, theme }: Props) {
     volume.current.priceScale().applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } })
     candles.current.priceScale().applyOptions({ scaleMargins: { top: 0.08, bottom: 0.25 } })
     chart.current = c
+    // The host is hidden (0px wide) until the first data arrives, so a fit made then leaves the bars
+    // squeezed to the right once it gets its width. Refit when it goes from hidden to visible; this
+    // observer runs after the chart's own autoSize one, which was registered first.
+    let hidden = true
+    const observer = new ResizeObserver(([entry]) => {
+      const nowHidden = entry.contentRect.width === 0
+      if (hidden && !nowHidden) c.timeScale().fitContent()
+      hidden = nowHidden
+    })
+    observer.observe(el)
     return () => {
+      observer.disconnect()
       c.remove()
       chart.current = candles.current = volume.current = null
     }

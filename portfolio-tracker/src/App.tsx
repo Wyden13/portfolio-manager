@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { AllocationPanel } from './components/AllocationDonut'
 import { CandlePanel } from './components/CandleChart'
+import { Connections } from './components/Connections'
 import { GainLossPanel } from './components/GainLossBars'
 import { Ledger } from './components/Ledger'
 import { LivePnl } from './components/LivePnl'
@@ -12,6 +13,7 @@ import { useHashTab, type Tab } from './hooks/useHashTab'
 import { useLivePortfolio, type LiveState, type PnLHistory } from './hooks/useLivePortfolio'
 import { useTheme } from './hooks/useTheme'
 import { currenciesOf } from './lib/aggregate'
+import { hashFor } from './lib/route'
 import { plural } from './lib/format'
 import type { Theme } from './lib/theme'
 import type { PortfolioSnapshot } from './types'
@@ -56,7 +58,7 @@ function Dashboard({ snapshot, history, theme }: {
   const uncosted = snapshot.positions.filter((p) => p.status === 'no_cost').length
 
   if (snapshot.positions.length === 0) {
-    return <Empty>No holdings yet. Connect a brokerage and sync it to see your portfolio here.</Empty>
+    return <Empty>No holdings yet. <a href={hashFor('connections')}>Connect a brokerage</a> to see your portfolio here.</Empty>
   }
   return (
     <>
@@ -88,7 +90,7 @@ function Dashboard({ snapshot, history, theme }: {
   )
 }
 
-const TABS: Array<[Tab, string]> = [['dashboard', 'Dashboard'], ['ledger', 'Ledger']]
+const TABS: Array<[Tab, string]> = [['dashboard', 'Dashboard'], ['ledger', 'Ledger'], ['connections', 'Connections']]
 
 function App() {
   const [theme, toggleTheme] = useTheme()
@@ -105,7 +107,7 @@ function App() {
           <h1>InvestIQ</h1>
           <nav className="tabs" aria-label="Views">
             {TABS.map(([id, label]) => (
-              <a key={id} href={id === 'ledger' ? '#/ledger' : '#/'} aria-current={tab === id ? 'page' : undefined}
+              <a key={id} href={hashFor(id)} aria-current={tab === id ? 'page' : undefined}
                 onClick={(e) => { e.preventDefault(); openTab(id) }}>
                 {label}
               </a>
@@ -121,6 +123,7 @@ function App() {
 
         <main>
           {tab === 'ledger' && <Ledger />}
+          {tab === 'connections' && <Connections />}
           {tab === 'dashboard' && state.status === 'connecting' && <Empty>Loading your portfolio…</Empty>}
           {tab === 'dashboard' && state.status === 'offline' && (
             <div className="state offline" role="alert">

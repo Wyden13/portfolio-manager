@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     PNL_STREAM_INTERVAL_SECONDS: float = 5
     SYNC_INTERVAL_MINUTES: float = 60  # background sync of every connection; 0 disables it
     BASE_CURRENCY: str = "CAD"  # totals are also converted into this at spot FX
+    FRONTEND_URL: str = "http://localhost:5173"  # where broker sign-in flows return the user
 
 
 settings = Settings()

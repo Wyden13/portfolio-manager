@@ -115,3 +115,55 @@ export interface LinkedAccount {
   account_number: string
   removed: boolean
 }
+
+export type ConnectionStatus = 'pending' | 'active' | 'needs_reauth' | 'error'
+export type Platform = 'questrade' | 'snaptrade'
+
+export interface ConnectionAccount {
+  id: number
+  account_type: string
+  /** Masked, e.g. ••1234 */
+  account_number: string
+  removed: boolean
+  /** Mirrors a directly connected account, so it is left out of totals. */
+  duplicate: boolean
+}
+
+export interface Connection {
+  platform: Platform
+  status: ConnectionStatus
+  last_error: string | null
+  last_synced_at: string | null
+  institutions: Array<{ name: string; accounts: ConnectionAccount[] }>
+}
+
+export interface ConnectionsOverview {
+  /** Which sign-in flows the server is configured for. */
+  options: { questrade_oauth: boolean; snaptrade: boolean }
+  connections: Connection[]
+}
+
+export type BrokerageId = 'questrade' | 'wealthsimple'
+
+/** A brokerage the connect picker offers. */
+export interface BrokerageOption {
+  id: BrokerageId
+  name: string
+  /** Questrade connects directly; Wealthsimple through SnapTrade's portal. */
+  method: 'direct' | 'snaptrade'
+  /** Official logo from SnapTrade, when it is reachable. */
+  logo_url: string | null
+  /** Off when the server lacks the credentials this method needs. */
+  available: boolean
+  connected: boolean
+  /** Questrade: whether the OAuth sign-in is configured (the App Hub token always works). */
+  oauth?: boolean
+  /** Wealthsimple: SnapTrade's broker slug, preselected in the portal. */
+  snaptrade_slug?: string | null
+}
+
+export interface BrokerageCatalog {
+  options: BrokerageOption[]
+  /** Logos for linked institutions, by institution name. */
+  institution_logos: Record<string, string>
+}

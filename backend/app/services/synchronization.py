@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
@@ -32,6 +33,16 @@ class SyncResult:
     accounts: int = 0
     transactions_added: int = 0
     positions: int = 0
+
+
+@contextlib.asynccontextmanager
+async def connection_lock(connection: BrokerConnection):
+    """Hold the connection's sync lock; SyncInProgress if a sync (or disconnect) already holds it."""
+    lock = _locks.setdefault(connection.id, asyncio.Lock())
+    if lock.locked():
+        raise SyncInProgress(f"{connection.platform} sync already running")
+    async with lock:
+        yield
 
 
 def _utcnow() -> datetime:
@@ -148,10 +159,7 @@ async def run_sync(db: Session, connection: BrokerConnection, adapter: Brokerage
                          --credentials rejected--> needs_reauth (left by connecting again)
                          --other failure--> error
     """
-    lock = _locks.setdefault(connection.id, asyncio.Lock())
-    if lock.locked():
-        raise SyncInProgress(f"{connection.platform} sync already running")
-    async with lock:
+    async with connection_lock(connection):
         try:
             result = await sync_connection(db, connection, adapter)
         except ReauthRequired as exc:

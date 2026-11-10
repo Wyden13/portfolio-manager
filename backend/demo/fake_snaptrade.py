@@ -51,6 +51,11 @@ def _universal_symbol(symbol: str) -> dict:
     }
 
 
+def _slug(institution: str) -> str:
+    """SnapTrade's broker slug, e.g. WEALTHSIMPLE, INTERACTIVE-BROKERS."""
+    return institution.upper().replace(" ", "-")
+
+
 def _response(body):
     return SimpleNamespace(body=body, status=200)
 
@@ -60,13 +65,17 @@ class FakeSnapTrade:
         self.market = market
         self.books = {_uuid("account", b.account.number): b for b in books}
         self.users: dict[str, str] = {}
+        self.unlinked: dict[str, Book] = {}
         self.authentication = SimpleNamespace(
             register_snap_trade_user=self.register_snap_trade_user,
             login_snap_trade_user=self.login_snap_trade_user,
         )
+        self.connections = SimpleNamespace(delete_connection=self.delete_connection)
+        self.reference_data = SimpleNamespace(list_all_brokerages=self.list_all_brokerages)
         self.account_information = SimpleNamespace(
             list_user_accounts=self.list_user_accounts,
-            get_user_holdings=self.get_user_holdings,
+            get_all_account_positions=self.get_all_account_positions,
+            get_user_account_balance=self.get_user_account_balance,
             get_account_activities=self.get_account_activities,
         )
 
@@ -85,14 +94,42 @@ class FakeSnapTrade:
         self.users[user_id] = secrets.token_hex(16)
         return _response({"userId": user_id, "userSecret": self.users[user_id]})
 
-    def login_snap_trade_user(self, user_id: str, user_secret: str, **kwargs):
+    def login_snap_trade_user(self, user_id: str, user_secret: str, broker: str | None = None, **kwargs):
         self._authorize(user_id, user_secret)
+        # There is no portal to visit: (re)link the requested institution's accounts right away and
+        # send the user straight to the custom redirect, as the portal does when it finishes.
+        for account_id, book in list(self.unlinked.items()):
+            if broker is None or broker.startswith(_slug(book.account.institution)):
+                self.books[account_id] = self.unlinked.pop(account_id)
         token = secrets.token_urlsafe(16)
         return _response({
-            "redirectURI": f"https://app.snaptrade.com/snapTrade/redeemToken?token={token}"
-                           f"&connectionType={kwargs.get('connection_type', 'read')}",
+            "redirectURI": kwargs.get("custom_redirect")
+                           or f"https://app.snaptrade.com/snapTrade/redeemToken?token={token}"
+                              f"&connectionType={kwargs.get('connection_type', 'read')}",
             "sessionId": str(uuid.uuid4()),
         })
+
+    # reference data
+
+    def list_all_brokerages(self, **_):
+        # Logo URLs are left out: the demo runs offline, so the app shows its monogram fallback.
+        names = [("QUESTRADE", "Questrade"), ("WEALTHSIMPLETRADE", "Wealthsimple Trade"),
+                 ("INTERACTIVE-BROKERS", "Interactive Brokers")]
+        return _response([
+            {"id": _uuid("brokerage", slug), "slug": slug, "name": name, "display_name": name,
+             "aws_s3_logo_url": None, "aws_s3_square_logo_url": None, "enabled": True,
+             "maintenance_mode": False, "is_degraded": False}
+            for slug, name in names
+        ])
+
+    # connections
+
+    def delete_connection(self, connection_id: str, user_id: str, user_secret: str, **_):
+        self._authorize(user_id, user_secret)
+        for account_id, book in list(self.books.items()):
+            if _uuid("authorization", book.account.institution) == connection_id:
+                self.unlinked[account_id] = self.books.pop(account_id)
+        return _response({"detail": "deleted"})
 
     # account_information
 
@@ -122,27 +159,29 @@ class FakeSnapTrade:
         i = INSTRUMENTS[symbol]
         return self.market.last_price(i.yahoo) / i.minor_unit
 
-    def get_user_holdings(self, account_id: str, user_id: str, user_secret: str, **_):
+    def get_all_account_positions(self, account_id: str, user_id: str, user_secret: str, **_):
         self._authorize(user_id, user_secret)
         book = self._book(account_id)
-        positions = []
+        results = []
         for symbol, p in sorted(book.positions.items()):
-            price = self._price(symbol)
-            positions.append({
-                "symbol": {"symbol": _universal_symbol(symbol), "id": _uuid("symbol", symbol),
-                           "description": INSTRUMENTS[symbol].name, "is_quotable": True, "is_tradable": True},
-                "units": p.quantity, "price": round(price, 4),
-                "open_pnl": round(p.quantity * price - p.total_cost, 2),
-                "average_purchase_price": round(p.average_cost, 6), "fractional_units": p.quantity % 1,
-                "currency": _currency(INSTRUMENTS[symbol].currency), "cash_equivalent": False,
+            i = INSTRUMENTS[symbol]
+            u = _universal_symbol(symbol)
+            results.append({
+                "instrument": {"kind": "etf" if i.security_type == "et" else "stock", "id": u["id"],
+                               "symbol": symbol, "raw_symbol": u["raw_symbol"], "description": i.name,
+                               "currency": i.currency, "exchange": u["exchange"]["mic_code"]},
+                "units": str(p.quantity), "price": str(round(self._price(symbol), 4)),
+                "cost_basis": str(round(p.average_cost, 6)), "currency": i.currency, "cash_equivalent": False,
             })
-        return _response({
-            "account": self._account(account_id, book),
-            "balances": [{"currency": _currency(c), "cash": round(v, 2), "buying_power": round(v, 2)}
-                         for c, v in sorted(book.cash.items())],
-            "positions": positions, "option_positions": [], "orders": [],
-            "total_value": {"value": self._account(account_id, book)["balance"]["total"]["amount"], "currency": "CAD"},
-        })
+        results += [{"instrument": {"kind": "cash", "code": c}, "units": str(round(v, 2)), "price": "1",
+                     "currency": c, "cash_equivalent": True} for c, v in sorted(book.cash.items())]
+        return _response({"results": results, "data_freshness": {"as_of": _iso(date.today())}})
+
+    def get_user_account_balance(self, account_id: str, user_id: str, user_secret: str, **_):
+        self._authorize(user_id, user_secret)
+        book = self._book(account_id)
+        return _response([{"currency": _currency(c), "cash": round(v, 2), "buying_power": round(v, 2)}
+                          for c, v in sorted(book.cash.items())])
 
     def get_account_activities(self, account_id: str, user_id: str, user_secret: str, start_date=None,
                                end_date=None, offset: int = 0, limit: int = 1000, type=None, **_):

@@ -110,7 +110,21 @@ async def exchange_code(
         "code": code,
         "redirect_uri": settings.QUESTRADE_REDIRECT_URI,
     })
+    return _save_connection(data, user_id, db)
 
+
+async def connect_with_refresh_token(
+    refresh_token: str, user_id: int, db: Session, client: httpx.AsyncClient
+) -> BrokerConnection:
+    """Connect with a refresh token generated in Questrade's App Hub (personal apps, no OAuth app needed).
+
+    Raises httpx.HTTPStatusError when Questrade rejects the token.
+    """
+    data = await _token_request(client, {"grant_type": "refresh_token", "refresh_token": refresh_token})
+    return _save_connection(data, user_id, db)
+
+
+def _save_connection(data: dict, user_id: int, db: Session) -> BrokerConnection:
     connection = (
         db.query(BrokerConnection).filter_by(user_id=user_id, platform=PLATFORM).one_or_none()
         or BrokerConnection(user_id=user_id, platform=PLATFORM)
@@ -119,6 +133,10 @@ async def exchange_code(
     db.add(connection)
     db.commit()
     return connection
+
+
+def oauth_configured() -> bool:
+    return bool(settings.QUESTRADE_CLIENT_ID and settings.QUESTRADE_REDIRECT_URI)
 
 
 def _store_tokens(connection: BrokerConnection, data: dict) -> None:

@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.api.accounts import current_user_id, get_http_client
+from app.config import settings
 from app.database import get_db
 from app.integrations import questrade, snaptrade
 from app.integrations.questrade import QuestradeAdapter
@@ -12,8 +13,9 @@ from app.services.synchronization import run_sync
 
 router = APIRouter(prefix="/api")
 
-
 def get_snaptrade_client():
+    if not (settings.SNAPTRADE_CLIENT_ID and settings.SNAPTRADE_CONSUMER_KEY):
+        raise HTTPException(status_code=503, detail="SnapTrade is not configured")
     return snaptrade.make_client()
 
 
@@ -43,20 +45,6 @@ async def sync_questrade(
 ):
     connection = _connection(db, user_id, questrade.PLATFORM)
     return vars(await run_sync(db, connection, QuestradeAdapter(connection, db, client)))
-
-
-@router.post("/snaptrade/connect")
-def snaptrade_connect(
-    db: Session = Depends(get_db),
-    user_id: int = Depends(current_user_id),
-    client=Depends(get_snaptrade_client),
-):
-    """Register with SnapTrade and return the read-only connection portal URL.
-
-    Wealthsimple (no public API) and other institutions are linked through this portal too.
-    """
-    connection = snaptrade.register_user(client, db, user_id)
-    return {"redirect_uri": snaptrade.portal_url(client, connection)}
 
 
 @router.post("/sync/snaptrade")

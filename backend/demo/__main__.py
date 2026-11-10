@@ -40,7 +40,7 @@ def _configure_environment() -> None:
         "DATABASE_URL": f"sqlite:///{DEMO_DB}",
         "TOKEN_ENCRYPTION_KEY": Fernet.generate_key().decode(),
         "QUESTRADE_CLIENT_ID": "demo-client",
-        "QUESTRADE_REDIRECT_URI": "http://localhost:8000/api/questrade/callback",
+        "QUESTRADE_REDIRECT_URI": "",  # no fake login page: the Connections tab offers the token form instead
         "SNAPTRADE_CLIENT_ID": "demo-client",
         "SNAPTRADE_CONSUMER_KEY": "demo-key",
         "SYNC_INTERVAL_MINUTES": "0",  # the scheduler would call the real brokers
@@ -61,7 +61,7 @@ def _migrate() -> None:
 async def _main(args: argparse.Namespace) -> None:
     import uvicorn
 
-    from app.api import accounts, positions, sync
+    from app.api import accounts, connections, positions, sync
     from app.database import SessionLocal
     from app.main import app
     from app.services.market_data import YFinanceProvider
@@ -87,7 +87,10 @@ async def _main(args: argparse.Namespace) -> None:
         positions.get_history_provider: lambda: provider,
         accounts.get_http_client: http_client,
         sync.get_snaptrade_client: lambda: brokers.snaptrade,
+        connections.get_optional_snaptrade_client: lambda: brokers.snaptrade,
     })
+    print("\nTo reconnect Questrade from the Connections tab, paste this App Hub token:",
+          brokers.questrade.issue_personal_token())
     print(f"\nServing on http://{args.host}:{args.port} - prices tick every {args.tick:g}s\n")
     ticker = asyncio.create_task(market.run(args.tick))
     try:

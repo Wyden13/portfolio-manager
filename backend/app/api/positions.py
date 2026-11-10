@@ -19,7 +19,6 @@ def _yfinance() -> YFinanceProvider:
         _provider = YFinanceProvider()
     return _provider
 
-
 def get_quote_provider() -> QuoteProvider:
     return _yfinance()
 

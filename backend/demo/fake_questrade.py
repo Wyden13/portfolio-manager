@@ -37,6 +37,14 @@ class FakeQuestrade:
         self.symbol_ids = {s: 10_000 + i for i, s in enumerate(sorted(INSTRUMENTS))}
         self.access_token: str | None = None
         self.refresh_token: str | None = None
+        self.personal_tokens: set[str] = set()
+
+    def issue_personal_token(self) -> str:
+        """What App Hub's "Generate new token" gives a personal app. Real ones are single-use; this one
+        stays valid so the demo can be reconnected more than once."""
+        token = secrets.token_urlsafe(24)
+        self.personal_tokens.add(token)
+        return token
 
     def transport(self) -> httpx.MockTransport:
         return httpx.MockTransport(self.handle)
@@ -65,8 +73,10 @@ class FakeQuestrade:
     def _token(self, request: httpx.Request) -> httpx.Response:
         params = request.url.params
         grant = params.get("grant_type")
-        if grant == "refresh_token" and params.get("refresh_token") != self.refresh_token:
-            return httpx.Response(400, text="Bad Request")
+        if grant == "refresh_token":
+            token = params.get("refresh_token")
+            if token not in self.personal_tokens and token != self.refresh_token:
+                return httpx.Response(400, text="Bad Request")
         if grant not in ("refresh_token", "authorization_code"):
             return httpx.Response(400, text="Bad Request")
         self.access_token, self.refresh_token = secrets.token_urlsafe(24), secrets.token_urlsafe(24)

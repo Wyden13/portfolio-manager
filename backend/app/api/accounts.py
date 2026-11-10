@@ -1,11 +1,13 @@
 import secrets
 from dataclasses import asdict
+from urllib.parse import urlencode
 
 import httpx
 from fastapi import APIRouter, Cookie, Depends, HTTPException
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.database import get_db
 from app.integrations import questrade
 from app.integrations.questrade import QuestradeAdapter
@@ -27,8 +29,15 @@ async def get_http_client():
         yield client
 
 
+def connections_page(**params: str) -> str:
+    """The frontend's Connections tab, with the outcome of a broker sign-in in its query."""
+    return f"{settings.FRONTEND_URL}/#/connections?{urlencode(params)}"
+
+
 @router.get("/questrade/connect")
 def connect():
+    if not questrade.oauth_configured():
+        raise HTTPException(status_code=503, detail="Questrade sign-in is not configured")
     state = secrets.token_urlsafe(32)
     response = RedirectResponse(questrade.build_authorize_url(state))
     response.set_cookie(STATE_COOKIE, state, httponly=True, samesite="lax", max_age=600)
@@ -45,11 +54,15 @@ async def callback(
     client: httpx.AsyncClient = Depends(get_http_client),
 ):
     if not oauth_state or not secrets.compare_digest(state, oauth_state):
-        raise HTTPException(status_code=400, detail="Invalid OAuth state")
+        target = connections_page(error="questrade_state")
+    else:
+        try:
+            await questrade.exchange_code(code, user_id, db, client)
+            target = connections_page(linked=questrade.PLATFORM)
+        except httpx.HTTPStatusError:
+            target = connections_page(error="questrade_rejected")
 
-    await questrade.exchange_code(code, user_id, db, client)
-
-    response = RedirectResponse("/api/accounts")
+    response = RedirectResponse(target)
     response.delete_cookie(STATE_COOKIE)
     return response
 

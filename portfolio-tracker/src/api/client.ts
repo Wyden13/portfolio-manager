@@ -1,12 +1,37 @@
 import type {
-  HistoryInterval, HistoryRange, HistoryResponse, LedgerPage, LinkedAccount, PortfolioSnapshot, TransactionKind,
-  ValueHistoryResponse,
+  BrokerageCatalog, ConnectionsOverview, HistoryInterval, HistoryRange, HistoryResponse, LedgerPage, LinkedAccount, Platform,
+  PortfolioSnapshot, TransactionKind, ValueHistoryResponse,
 } from '../types'
 
 async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
   const res = await fetch(url, { signal, headers: { Accept: 'application/json' } })
   if (!res.ok) throw new Error(`${url} responded ${res.status}`)
   return res.json() as Promise<T>
+}
+
+/** A failed request, carrying the server's message (`detail`) and machine-readable `code` when it sent one. */
+export class ApiError extends Error {
+  readonly status: number
+  readonly code?: string
+  constructor(message: string, status: number, code?: string) {
+    super(message)
+    this.status = status
+    this.code = code
+  }
+}
+
+async function send<T>(method: 'POST' | 'DELETE', url: string, body?: unknown): Promise<T> {
+  const res = await fetch(url, {
+    method,
+    headers: { Accept: 'application/json', ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({})) as { detail?: unknown; code?: string }
+    const detail = typeof error.detail === 'string' ? error.detail : `${url} responded ${res.status}`
+    throw new ApiError(detail, res.status, error.code)
+  }
+  return (res.status === 204 ? undefined : await res.json()) as T
 }
 
 export const fetchPositions = (signal?: AbortSignal) => getJson<PortfolioSnapshot>('/api/positions', signal)
@@ -55,3 +80,34 @@ export function fetchLedger(q: LedgerQuery, limit: number, offset: number, signa
 }
 
 export const ledgerCsvUrl = (q: LedgerQuery) => `/api/transactions.csv?${ledgerParams(q)}`
+
+export const fetchConnections = (signal?: AbortSignal) => getJson<ConnectionsOverview>('/api/connections/overview', signal)
+
+export const fetchBrokerages = (signal?: AbortSignal) => getJson<BrokerageCatalog>('/api/brokerages', signal)
+
+/** Full-page navigation target: starts Questrade's OAuth sign-in, which returns to #/connections. */
+export const QUESTRADE_SIGN_IN_URL = '/api/questrade/connect'
+
+export const connectQuestradeToken = (refreshToken: string) =>
+  send<unknown>('POST', '/api/questrade/token', { refresh_token: refreshToken })
+
+export interface SnapTradePortalOptions {
+  /** SnapTrade broker slug to preselect, e.g. WEALTHSIMPLE */
+  broker?: string
+  /** Repair this already linked institution instead of adding one. */
+  reconnectInstitution?: string
+}
+
+export async function snapTradePortalUrl(opts: SnapTradePortalOptions): Promise<string> {
+  const body = await send<{ redirect_uri: string }>('POST', '/api/snaptrade/connect', {
+    broker: opts.broker, reconnect_institution: opts.reconnectInstitution,
+  })
+  return body.redirect_uri
+}
+
+export const syncPlatform = (platform: Platform) => send<unknown>('POST', `/api/sync/${platform}`)
+
+export function disconnect(platform: Platform, institution?: string): Promise<void> {
+  const qs = institution ? `?${new URLSearchParams({ institution })}` : ''
+  return send<void>('DELETE', `/api/connections/${platform}${qs}`)
+}

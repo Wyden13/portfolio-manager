@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
+import { hashFor, parseHash, type Tab } from '../lib/route'
 
-export type Tab = 'dashboard' | 'ledger'
+export type { Tab }
 
-const tabFromHash = (): Tab => (window.location.hash === '#/ledger' ? 'ledger' : 'dashboard')
+const tabFromHash = (): Tab => parseHash(window.location.hash).tab
 
 /** The open tab, kept in the URL hash (#/ledger) so reloads and the back button work. */
 export function useHashTab(): [Tab, (tab: Tab) => void] {
@@ -13,7 +14,7 @@ export function useHashTab(): [Tab, (tab: Tab) => void] {
     return () => window.removeEventListener('hashchange', onChange)
   }, [])
   const open = useCallback((next: Tab) => {
-    window.location.hash = next === 'ledger' ? '#/ledger' : '#/'
+    window.location.hash = hashFor(next)
   }, [])
   return [tab, open]
 }

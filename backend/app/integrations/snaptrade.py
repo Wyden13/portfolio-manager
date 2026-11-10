@@ -34,12 +34,28 @@ _STATUS = {
 }
 
 
+def is_personal_key() -> bool:
+    """Personal keys (client id PERS-...) belong to one SnapTrade user: no registration, no user secret."""
+    return settings.SNAPTRADE_CLIENT_ID.startswith("PERS-")
+
+
 def make_client():
     from snaptrade_client import SnapTrade, SnapTradeAuth
 
-    return SnapTrade(auth=SnapTradeAuth.commercial_api_key(
-        consumer_key=settings.SNAPTRADE_CONSUMER_KEY, client_id=settings.SNAPTRADE_CLIENT_ID,
-    ))
+    auth = SnapTradeAuth.personal_api_key if is_personal_key() else SnapTradeAuth.commercial_api_key
+    return SnapTrade(auth=auth(consumer_key=settings.SNAPTRADE_CONSUMER_KEY, client_id=settings.SNAPTRADE_CLIENT_ID))
+
+
+BROKERAGES_TTL = timedelta(hours=24)
+_brokerages: dict = {}  # {"at": datetime, "data": list}; the catalogue rarely changes
+
+
+def list_brokerages(client) -> list:
+    """Brokerages SnapTrade supports (names, slugs, official logos). Client-level call, cached."""
+    now = datetime.now(timezone.utc)
+    if not _brokerages or now - _brokerages["at"] > BROKERAGES_TTL:
+        _brokerages.update(at=now, data=list(client.reference_data.list_all_brokerages().body))
+    return _brokerages["data"]
 
 
 def _dec(value) -> Decimal:
@@ -81,6 +97,15 @@ def register_user(client, db: Session, user_id: int) -> BrokerConnection:
     existing = db.query(BrokerConnection).filter_by(user_id=user_id, platform=PLATFORM).one_or_none()
     if existing:
         return existing
+    if is_personal_key():
+        # The key itself identifies the SnapTrade user; there is nothing to register.
+        connection = BrokerConnection(
+            user_id=user_id, platform=PLATFORM, external_user_id=None,
+            encrypted_refresh_token=encrypt(""), status=ConnectionStatus.PENDING.value,
+        )
+        db.add(connection)
+        db.commit()
+        return connection
     # Random suffix: SnapTrade user ids are global to our client id, so a fixed id would collide
     # across environments (and with itself after a local database reset).
     external_id = f"investiq-{user_id}-{uuid.uuid4().hex}"
@@ -94,14 +119,40 @@ def register_user(client, db: Session, user_id: int) -> BrokerConnection:
     return connection
 
 
-def portal_url(client, connection: BrokerConnection) -> str:
-    """URL where the user links a brokerage with read-only permissions."""
+def _credentials(connection: BrokerConnection) -> dict:
+    if connection.external_user_id is None:  # personal key: the client signs as the user
+        return {}
+    return {"user_id": connection.external_user_id, "user_secret": decrypt(connection.encrypted_refresh_token)}
+
+
+def portal_url(
+    client, connection: BrokerConnection, broker: str | None = None, reconnect: str | None = None,
+    custom_redirect: str | None = None,
+) -> str:
+    """URL where the user links a brokerage with read-only permissions.
+
+    broker preselects an institution (e.g. WEALTHSIMPLE); reconnect is the brokerage authorization
+    to repair; the portal sends the user to custom_redirect when done.
+    """
+    options = {"broker": broker, "reconnect": reconnect, "custom_redirect": custom_redirect}
     body = client.authentication.login_snap_trade_user(
-        user_id=connection.external_user_id,
-        user_secret=decrypt(connection.encrypted_refresh_token),
-        connection_type="read",
+        **_credentials(connection), connection_type="read", **{k: v for k, v in options.items() if v},
     ).body
     return body["redirectURI"]
+
+
+def authorization_ids(client, connection: BrokerConnection, institution: str) -> list[str]:
+    """SnapTrade brokerage authorizations (linked logins) holding this institution's accounts."""
+    accounts = client.account_information.list_user_accounts(**_credentials(connection)).body
+    return sorted({
+        a["brokerage_authorization"] for a in accounts
+        if (a.get("institution_name") or "") == institution and a.get("brokerage_authorization")
+    })
+
+
+def remove_authorization(client, connection: BrokerConnection, authorization_id: str) -> None:
+    """Unlink one brokerage login from SnapTrade (account access only; nothing is traded)."""
+    client.connections.delete_connection(connection_id=authorization_id, **_credentials(connection))
 
 
 class SnapTradeAdapter(BrokerageAdapter):
@@ -110,10 +161,7 @@ class SnapTradeAdapter(BrokerageAdapter):
     def __init__(self, connection: BrokerConnection, client):
         self.connection = connection
         self.client = client
-        self._creds = {
-            "user_id": connection.external_user_id,
-            "user_secret": decrypt(connection.encrypted_refresh_token),
-        }
+        self._creds = _credentials(connection)
 
     async def _call(self, method, **kwargs):
         from snaptrade_client import ApiException
@@ -143,28 +191,25 @@ class SnapTradeAdapter(BrokerageAdapter):
             for item in body
         ]
 
-    async def _holdings(self, account_id):
-        return await self._call(self.client.account_information.get_user_holdings, account_id=account_id)
-
     async def get_balances(self, account_id) -> list[RawBalance]:
-        holdings = await self._holdings(account_id)
-        return [
-            RawBalance(_currency(b.get("currency")), _dec(b.get("cash")), Decimal(0))
-            for b in holdings.get("balances") or []
-        ]
+        body = await self._call(self.client.account_information.get_user_account_balance, account_id=account_id)
+        return [RawBalance(_currency(b.get("currency")), _dec(b.get("cash")), Decimal(0)) for b in body or []]
 
     async def get_positions(self, account_id) -> list[RawPosition]:
-        holdings = await self._holdings(account_id)
-        return [
-            RawPosition(
-                symbol=p["symbol"]["symbol"]["symbol"],
+        body = await self._call(self.client.account_information.get_all_account_positions, account_id=account_id)
+        positions = []
+        for p in body.get("results") or []:
+            instrument = p.get("instrument") or {}
+            # Cash rows have no symbol and are reported as balances instead.
+            if instrument.get("kind") == "cash" or not instrument.get("symbol") or _dec(p.get("units")) == 0:
+                continue
+            positions.append(RawPosition(
+                symbol=instrument["symbol"],
                 quantity=_dec(p.get("units")),
-                average_cost=_dec(p["average_purchase_price"]) if p.get("average_purchase_price") else None,
-                currency=_currency(p.get("currency")),
-            )
-            for p in holdings.get("positions") or []
-            if _dec(p.get("units")) != 0
-        ]
+                average_cost=_dec(p["cost_basis"]) if p.get("cost_basis") else None,  # per unit
+                currency=p.get("currency") or instrument.get("currency") or "",
+            ))
+        return positions
 
     async def get_transactions(
         self, account_id, start: datetime | None = None, end: datetime | None = None

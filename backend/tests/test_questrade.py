@@ -4,11 +4,8 @@ import httpx
 import pytest
 import respx
 from cryptography.fernet import Fernet
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 
 from app.config import settings
-from app.database import Base
 from app.integrations import questrade
 from app.integrations.questrade import QuestradeAdapter
 from app.models.account import AccountStatus
@@ -24,14 +21,6 @@ def config(monkeypatch):
     monkeypatch.setattr(settings, "TOKEN_ENCRYPTION_KEY", Fernet.generate_key().decode())
     monkeypatch.setattr(settings, "QUESTRADE_CLIENT_ID", "cid")
     monkeypatch.setattr(settings, "QUESTRADE_REDIRECT_URI", "http://localhost/cb")
-
-
-@pytest.fixture
-def db():
-    engine = create_engine("sqlite://")
-    Base.metadata.create_all(engine)
-    with sessionmaker(bind=engine, expire_on_commit=False)() as session:
-        yield session
 
 
 def token_payload(n=1):

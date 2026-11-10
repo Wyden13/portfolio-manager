@@ -13,7 +13,10 @@ class BrokerConnection(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[int] = mapped_column(Integer, index=True)
     platform: Mapped[str] = mapped_column(String(32))
+    # Questrade: the OAuth refresh token. SnapTrade: the SnapTrade userSecret.
     encrypted_refresh_token: Mapped[str] = mapped_column(String)
     access_token: Mapped[str | None] = mapped_column(String, nullable=True)
     api_server: Mapped[str | None] = mapped_column(String, nullable=True)
     expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # SnapTrade: the userId registered with SnapTrade.
+    external_user_id: Mapped[str | None] = mapped_column(String, nullable=True)

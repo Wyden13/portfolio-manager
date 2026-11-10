@@ -6,8 +6,11 @@ from app.models.position import Position
 from app.models.transaction import Transaction, TransactionKind
 from app.services.currency import QuoteFxProvider
 from app.services.market_data import Quote, QuoteProvider, YFinanceProvider, to_yahoo_symbol
-from app.services.performance import CurrencyTotal, compute_holdings, compute_pnl, convert_totals, reconcile
-from app.services.portfolio import build_pnl, load_holdings
+from app.services.performance import (
+    CashBalance, CurrencyTotal, Holding, cash_balances, compute_holdings, compute_pnl, convert_totals, reconcile,
+    summarize_accounts,
+)
+from app.services.portfolio import build_pnl, load_holdings, load_portfolio
 
 NOW = datetime(2026, 6, 1)
 
@@ -15,6 +18,12 @@ NOW = datetime(2026, 6, 1)
 def tx(id, kind, qty, price, day, fee=0, symbol="RY.TO", cur="CAD", account=1):
     return Transaction(id=id, account_id=account, external_id=str(id), kind=kind.value, symbol=symbol,
                        trade_date=datetime(2026, 1, day), quantity=D(qty), price=D(price), fee=D(fee), currency=cur)
+
+
+def cash_tx(id, kind, amount, day, cur="CAD", account=1):
+    return Transaction(id=id, account_id=account, external_id=str(id), kind=kind.value, symbol=None,
+                       trade_date=datetime(2026, 1, day), quantity=D(0), price=D(0), fee=D(0),
+                       net_amount=D(amount), currency=cur)
 
 
 def q(price, cur="CAD", symbol="RY.TO"):
@@ -155,3 +164,82 @@ async def test_minor_unit_quotes_are_converted_not_mistaken_for_the_major_unit()
 def test_yahoo_symbols():
     assert [to_yahoo_symbol(s) for s in ("ry.to", "BRK.B", "BBD.B.TO", "ABC.VN", "ABC.V", "AAPL", "VOD.L", "REI.UN.TO")] == [
         "RY.TO", "BRK-B", "BBD-B.TO", "ABC.V", "ABC.V", "AAPL", "VOD.L", "REI-UN.TO"]
+
+
+def test_cash_is_the_signed_sum_of_the_ledger_per_currency():
+    buy = tx(2, TransactionKind.BUY, 10, 100, 3)
+    buy.net_amount = D(-1005)
+    ledger = [
+        cash_tx(1, TransactionKind.DEPOSIT, 2000, 2), buy, cash_tx(3, TransactionKind.DIVIDEND, 12.5, 9),
+        cash_tx(4, TransactionKind.FEE, -2.5, 9), cash_tx(5, TransactionKind.DEPOSIT, 300, 2, cur="usd"),
+        cash_tx(6, TransactionKind.WITHDRAWAL, -300, 4, cur="USD"),  # back to zero: no USD line
+    ]
+    assert cash_balances(ledger) == [CashBalance(1, "CAD", D(1005), False)]
+
+
+def test_cash_is_estimated_when_the_history_may_be_partial():
+    # Account 2's oldest stored activity is a buy: its deposit predates the sync lookback.
+    buy = tx(2, TransactionKind.BUY, 1, 100, 3, account=2)
+    buy.net_amount = D(-100)
+    ledger = [cash_tx(1, TransactionKind.DEPOSIT, 500, 2), buy, cash_tx(3, TransactionKind.DEPOSIT, 50, 4, account=2),
+              cash_tx(4, TransactionKind.DIVIDEND, 1, 5, account=3)]
+    oversold = Holding(1, "RY.TO", "CAD", quantity=D(1), incomplete_history=True)
+    flags = {(c.account_id, c.estimated) for c in cash_balances(ledger)}
+    assert flags == {(1, False), (2, True), (3, True)}
+    assert {(c.account_id, c.estimated) for c in cash_balances(ledger, [oversold])} == {(1, True), (2, True), (3, True)}
+
+
+def test_account_summary_converts_holdings_and_cash_and_flags_missing_rates():
+    holdings = compute_holdings([
+        tx(1, TransactionKind.BUY, 10, 100, 1),
+        tx(2, TransactionKind.BUY, 2, 50, 1, symbol="AAPL", cur="USD"),
+    ])
+    holdings.append(Holding(1, "TD.TO", "CAD", quantity=D(1), cost_basis=None, source="broker"))
+    snap = compute_pnl(holdings, {"RY.TO": q(110), "AAPL": q(60, "USD", "AAPL"), "TD.TO": q(80, symbol="TD.TO")}, NOW)
+    cash = [CashBalance(1, "CAD", D(20)), CashBalance(1, "USD", D(10), True), CashBalance(2, "CAD", D(5))]
+    a1, a2 = summarize_accounts(snap.positions, cash, {"CAD": D(1), "USD": D(2)})
+    # holdings: 1100 + 2*60*2 + 80 (no cost: value only); P&L: 100 + 20*2
+    assert (a1.market_value, a1.cost_basis, a1.unrealized_pnl, a1.holdings) == (D(1420), D(1200), D(140), 3)
+    assert (a1.cash_value, a1.total, a1.complete) == (D(40), D(1460), True)
+    assert (a2.holdings, a2.total, a2.unrealized_pct) == (0, D(5), None)
+    partial = summarize_accounts(snap.positions, cash, {"CAD": D(1)})[0]
+    assert not partial.complete and partial.market_value == D(1180)
+
+
+async def test_build_pnl_rolls_cash_into_total_assets_and_tags_asset_classes(db):
+    db.add(account(1, 1))
+    buy = tx(2, TransactionKind.BUY, 10, 100, 3)
+    buy.net_amount = D(-1000)
+    db.add_all([cash_tx(1, TransactionKind.DEPOSIT, 1500, 2), buy, pos(10, 100)])
+    db.commit()
+    holdings, cash = load_portfolio(db, 1)
+    assert cash == [CashBalance(1, "CAD", D(500), False)]
+
+    class Fake(QuoteProvider):
+        async def get_quotes(self, symbols):
+            return {"RY.TO": q(110)}
+
+        async def get_asset_classes(self, symbols):
+            return {"RY.TO": "stock"}
+
+    snap = await build_pnl(holdings, Fake(), QuoteFxProvider(Fake()), "CAD", cash=cash)
+    assert snap.positions[0].asset_class == "stock"
+    assert (snap.cash_base, snap.total_assets_base) == (D(500), D(1600))
+    assert snap.accounts[0].total == D(1600) and snap.base_total.market_value == D(1100)
+
+
+async def test_yfinance_asset_classes_are_cached_and_failures_read_as_other():
+    calls = []
+
+    class T:
+        def __init__(self, s):
+            calls.append(s)
+            if s == "BAD":
+                raise RuntimeError("no data")
+            self.info = {"XEQT.TO": {"quoteType": "ETF"}, "RY.TO": {"quoteType": "EQUITY"}, "X": {}}[s]
+
+    provider = YFinanceProvider(ticker_factory=T)
+    assert await provider.get_asset_classes(["XEQT.TO", "RY.TO", "X", "BAD"]) == {
+        "XEQT.TO": "etf", "RY.TO": "stock", "X": "other", "BAD": "other"}
+    await provider.get_asset_classes(["RY.TO"])
+    assert sorted(calls) == ["BAD", "RY.TO", "X", "XEQT.TO"]

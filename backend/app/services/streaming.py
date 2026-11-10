@@ -8,8 +8,8 @@ from sqlalchemy.orm import Session
 from app.proto import pnl_pb2
 from app.services.currency import FxProvider
 from app.services.market_data import QuoteProvider
-from app.services.performance import CurrencyTotal, PnLSnapshot
-from app.services.portfolio import build_pnl, load_holdings
+from app.services.performance import AccountSummary, CurrencyTotal, PnLSnapshot
+from app.services.portfolio import build_pnl, load_portfolio
 
 _STATUS = {
     "ok": pnl_pb2.STATUS_OK,
@@ -37,6 +37,20 @@ def _total(t: CurrencyTotal) -> pnl_pb2.CurrencyTotal:
     )
 
 
+def _account(a: AccountSummary) -> pnl_pb2.AccountSummary:
+    return pnl_pb2.AccountSummary(
+        account_id=a.account_id, market_value=_f(a.market_value), cost_basis=_f(a.cost_basis),
+        unrealized_pnl=_f(a.unrealized_pnl),
+        unrealized_pct=float(a.unrealized_pct) if a.unrealized_pct is not None else None,
+        cash=[pnl_pb2.CashBalance(currency=c.currency, amount=_f(c.amount), estimated=c.estimated) for c in a.cash],
+        cash_value=_f(a.cash_value), total=_f(a.total), holdings=a.holdings, complete=a.complete,
+    )
+
+
+def _optional(value) -> float | None:
+    return float(value) if value is not None else None
+
+
 def snapshot_to_proto(snapshot: PnLSnapshot) -> pnl_pb2.PnLUpdate:
     return pnl_pb2.PnLUpdate(
         as_of_ms=_ms(snapshot.as_of),
@@ -48,13 +62,17 @@ def snapshot_to_proto(snapshot: PnLSnapshot) -> pnl_pb2.PnLUpdate:
                 unrealized_pnl=_f(p.unrealized_pnl), unrealized_pct=_f(p.unrealized_pct),
                 first_buy_ms=_ms(p.first_buy_at), quote_as_of_ms=_ms(p.quote_as_of),
                 status=_STATUS[p.status], incomplete_history=p.incomplete_history,
-                source=_SOURCE[p.source],
+                source=_SOURCE[p.source], asset_class=p.asset_class,
             )
             for p in snapshot.positions
         ],
         totals=[_total(t) for t in snapshot.totals],
         base_total=_total(snapshot.base_total) if snapshot.base_total else None,
         fx_rates={c: float(r) for c, r in snapshot.fx_rates.items()},
+        accounts=[_account(a) for a in snapshot.accounts],
+        base_currency=snapshot.base_currency,
+        cash_base=_optional(snapshot.cash_base),
+        total_assets_base=_optional(snapshot.total_assets_base),
     )
 
 
@@ -77,8 +95,8 @@ async def pnl_events(
     while True:
         try:
             with session_factory() as db:
-                holdings = load_holdings(db, user_id)
-            yield encode_event(await build_pnl(holdings, provider, fx))
+                holdings, cash = load_portfolio(db, user_id)
+            yield encode_event(await build_pnl(holdings, provider, fx, cash=cash))
         except Exception:
             # Keep the stream alive through a flaky quote source or DB; clients ignore comments.
             yield ": pnl update failed\n\n"

@@ -5,8 +5,8 @@ from app.api.accounts import current_user_id
 from app.database import get_db
 from app.services.currency import FxProvider, QuoteFxProvider
 from app.services.market_data import HistoryProvider, QuoteProvider, YFinanceProvider
-from app.services.performance import CurrencyTotal
-from app.services.portfolio import build_pnl, load_holdings
+from app.services.performance import AccountSummary, CurrencyTotal
+from app.services.portfolio import build_pnl, load_portfolio
 
 router = APIRouter(prefix="/api")
 
@@ -42,6 +42,16 @@ def _total(t: CurrencyTotal) -> dict:
     }
 
 
+def _account(a: AccountSummary) -> dict:
+    return {
+        "account_id": a.account_id, "market_value": float(a.market_value), "cost_basis": float(a.cost_basis),
+        "unrealized_pnl": float(a.unrealized_pnl), "unrealized_pct": _num(a.unrealized_pct),
+        "cash": [{"currency": c.currency, "amount": float(c.amount), "estimated": c.estimated} for c in a.cash],
+        "cash_value": float(a.cash_value), "total": float(a.total), "holdings": a.holdings,
+        "complete": a.complete,
+    }
+
+
 @router.get("/positions")
 async def list_positions(
     db: Session = Depends(get_db),
@@ -50,7 +60,8 @@ async def list_positions(
     fx: FxProvider = Depends(get_fx_provider),
 ):
     """Holdings reconciled against the broker snapshot, priced with live quotes (unrealized P&L)."""
-    snapshot = await build_pnl(load_holdings(db, user_id), provider, fx)
+    holdings, cash = load_portfolio(db, user_id)
+    snapshot = await build_pnl(holdings, provider, fx, cash=cash)
     return {
         "as_of": snapshot.as_of.isoformat() + "Z",
         "positions": [
@@ -62,10 +73,15 @@ async def list_positions(
                 "unrealized_pct": _num(p.unrealized_pct), "status": p.status,
                 "first_buy_at": p.first_buy_at.isoformat() if p.first_buy_at else None,
                 "incomplete_history": p.incomplete_history, "source": p.source,
+                "asset_class": p.asset_class,
             }
             for p in snapshot.positions
         ],
         "totals": [_total(t) for t in snapshot.totals],
         "base_total": _total(snapshot.base_total) if snapshot.base_total else None,
         "fx_rates": {c: float(r) for c, r in snapshot.fx_rates.items()},
+        "accounts": [_account(a) for a in snapshot.accounts],
+        "base_currency": snapshot.base_currency or None,
+        "cash_base": _num(snapshot.cash_base),
+        "total_assets_base": _num(snapshot.total_assets_base),
     }

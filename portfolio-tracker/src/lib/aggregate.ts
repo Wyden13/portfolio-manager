@@ -1,4 +1,4 @@
-import type { CurrencyTotal, PortfolioSnapshot, Position } from '../types'
+import type { AssetClass, CurrencyTotal, PortfolioSnapshot, Position } from '../types'
 
 export interface PricedPosition extends Position {
   market_value: number
@@ -41,7 +41,9 @@ export function totalFor(snapshot: PortfolioSnapshot, currency: string): Currenc
   return snapshot.totals.find((t) => t.currency === currency)
 }
 
-export type AllocationBy = 'holding' | 'account'
+export const GROUPINGS = ['holding', 'account', 'class', 'currency'] as const
+export type AllocationBy = typeof GROUPINGS[number]
+export const GROUP_LABEL: Record<AllocationBy, string> = { holding: 'Holding', account: 'Account', class: 'Class', currency: 'Currency' }
 
 export interface Slice {
   name: string
@@ -50,11 +52,32 @@ export interface Slice {
 
 export type AccountLabel = (accountId: number) => string
 
-export function allocation(positions: ValuedPosition[], by: AllocationBy, accountLabel: AccountLabel): Slice[] {
+export const CASH_LABEL = 'Cash'
+export const ASSET_CLASS_LABEL: Record<AssetClass, string> = { stock: 'Stocks', etf: 'ETFs', fund: 'Funds', other: 'Other' }
+
+/**
+ * Everything held, holdings and cash, in the base currency at the snapshot's spot rates, grouped by
+ * `by`. Amounts in a currency without a rate are left out, and so is negative cash (a margin
+ * balance), which a share of the whole can't show.
+ */
+export function allocation(snapshot: PortfolioSnapshot, by: AllocationBy, accountLabel: AccountLabel): Slice[] {
   const sums = new Map<string, number>()
-  for (const p of positions) {
-    const key = by === 'holding' ? p.symbol : accountLabel(p.account_id)
-    sums.set(key, (sums.get(key) ?? 0) + p.market_value)
+  const add = (key: string, amount: number, currency: string) => {
+    const rate = snapshot.fx_rates[currency.toUpperCase()]
+    if (rate === undefined || amount <= 0) return
+    sums.set(key, (sums.get(key) ?? 0) + amount * rate)
+  }
+  for (const p of snapshot.positions.filter(isValued)) {
+    const key = by === 'holding' ? p.symbol
+      : by === 'account' ? accountLabel(p.account_id)
+      : by === 'class' ? ASSET_CLASS_LABEL[p.asset_class]
+      : p.currency
+    add(key, p.market_value, p.currency)
+  }
+  for (const a of snapshot.accounts) {
+    for (const c of a.cash) {
+      add(by === 'account' ? accountLabel(a.account_id) : by === 'currency' ? c.currency : CASH_LABEL, c.amount, c.currency)
+    }
   }
   return [...sums].map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value)
 }

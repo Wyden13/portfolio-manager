@@ -1,6 +1,6 @@
 import type {
-  BrokerageCatalog, ConnectionsOverview, HistoryInterval, HistoryRange, HistoryResponse, LedgerPage, LinkedAccount, Platform,
-  PortfolioSnapshot, TransactionKind, ValueHistoryResponse,
+  AccountValueHistoryResponse, BrokerageCatalog, ConnectionsOverview, HistoryInterval, HistoryRange, HistoryResponse, LedgerPage, LinkedAccount, Platform,
+  PortfolioSnapshot, TransactionKind,
 } from '../types'
 
 async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
@@ -43,9 +43,8 @@ export function fetchHistory(
   return getJson<HistoryResponse>(`/api/history/${encodeURIComponent(symbol)}?${qs}`, signal)
 }
 
-export function fetchValueHistory(currency: string, range: HistoryRange, signal?: AbortSignal): Promise<ValueHistoryResponse> {
-  const qs = new URLSearchParams({ range, currency })
-  return getJson<ValueHistoryResponse>(`/api/portfolio/value?${qs}`, signal)
+export function fetchAccountValueHistory(range: HistoryRange, signal?: AbortSignal): Promise<AccountValueHistoryResponse> {
+  return getJson<AccountValueHistoryResponse>(`/api/portfolio/value/accounts?${new URLSearchParams({ range })}`, signal)
 }
 
 export const fetchAccounts = (signal?: AbortSignal) => getJson<LinkedAccount[]>('/api/ledger/accounts', signal)

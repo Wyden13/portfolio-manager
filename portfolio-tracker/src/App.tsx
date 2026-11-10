@@ -1,21 +1,21 @@
-import { useMemo, useState } from 'react'
-import { AllocationPanel } from './components/AllocationDonut'
+import { useCallback, useMemo, useState } from 'react'
+import { AccountCards } from './components/AccountCards'
+import { AccountPerformancePanel } from './components/AccountPerformance'
 import { CandlePanel } from './components/CandleChart'
 import { Connections } from './components/Connections'
 import { GainLossPanel } from './components/GainLossBars'
 import { Ledger } from './components/Ledger'
-import { LivePnl } from './components/LivePnl'
 import { Empty, Segmented } from './components/Panel'
+import { TotalAssetsCard } from './components/TotalAssetsCard'
 import { TreemapPanel } from './components/TreemapChart'
-import { ValuePanel } from './components/ValueChart'
-import { AccountsContext, useAccountsLoader } from './hooks/useAccounts'
+import { AccountsContext, useAccounts, useAccountsLoader } from './hooks/useAccounts'
 import { useHashTab, type Tab } from './hooks/useHashTab'
 import { useLivePortfolio, type LiveState, type PnLHistory } from './hooks/useLivePortfolio'
 import { useTheme } from './hooks/useTheme'
 import { currenciesOf } from './lib/aggregate'
 import { hashFor } from './lib/route'
 import { plural } from './lib/format'
-import type { Theme } from './lib/theme'
+import { PALETTES, type Theme } from './lib/theme'
 import type { PortfolioSnapshot } from './types'
 import './App.css'
 
@@ -56,17 +56,24 @@ function Dashboard({ snapshot, history, theme }: {
   )
   const unpriced = snapshot.positions.filter((p) => p.status === 'no_quote' || p.status === 'currency_mismatch').length
   const uncosted = snapshot.positions.filter((p) => p.status === 'no_cost').length
+  const base = snapshot.base_currency ?? snapshot.base_total?.currency ?? currency ?? ''
 
-  if (snapshot.positions.length === 0) {
+  // One colour per account, by its place among linked accounts, so card swatches match chart lines.
+  const { list } = useAccounts()
+  const colorOf = useCallback((accountId: number) => {
+    const series = PALETTES[theme].series
+    const i = list.findIndex((a) => a.id === accountId)
+    return series[(i >= 0 ? i : list.length + accountId) % series.length]
+  }, [list, theme])
+  const accountsKey = snapshot.accounts.map((a) => a.account_id).join(',')
+
+  if (snapshot.positions.length === 0 && snapshot.accounts.length === 0) {
     return <Empty>No holdings yet. <a href={hashFor('connections')}>Connect a brokerage</a> to see your portfolio here.</Empty>
   }
   return (
     <>
-      <LivePnl totals={snapshot.totals} baseTotal={snapshot.base_total} fxRates={snapshot.fx_rates} history={history} />
       <div className="toolbar">
-        {currencies.length > 1 && (
-          <Segmented label="Chart currency" value={currency} options={currencies} onChange={setPicked} />
-        )}
+        <h2 className="section-title">Overview</h2>
         <span className="muted small">Updated {new Date(snapshot.as_of).toLocaleTimeString()}</span>
       </div>
       {unpriced > 0 && (
@@ -80,12 +87,27 @@ function Dashboard({ snapshot, history, theme }: {
         </p>
       )}
       <div className="grid">
-        <TreemapPanel snapshot={snapshot} currency={currency} theme={theme} />
-        <AllocationPanel snapshot={snapshot} currency={currency} theme={theme} />
-        <GainLossPanel snapshot={snapshot} currency={currency} theme={theme} />
-        <ValuePanel currency={currency} theme={theme} />
-        <CandlePanel symbols={symbols} theme={theme} />
+        <TotalAssetsCard snapshot={snapshot} history={history} base={base} theme={theme} />
+        <AccountPerformancePanel accountsKey={accountsKey} colorOf={colorOf} theme={theme} />
       </div>
+      {snapshot.accounts.length > 0 && (
+        <AccountCards accounts={snapshot.accounts} base={base} totalAssets={snapshot.total_assets_base} colorOf={colorOf} />
+      )}
+      {currency && (
+        <>
+          <div className="toolbar">
+            <h2 className="section-title">Holdings</h2>
+            {currencies.length > 1 && (
+              <Segmented label="Holdings currency" value={currency} options={currencies} onChange={setPicked} />
+            )}
+          </div>
+          <div className="grid">
+            <TreemapPanel snapshot={snapshot} currency={currency} theme={theme} />
+            <GainLossPanel snapshot={snapshot} currency={currency} theme={theme} />
+            <CandlePanel symbols={symbols} theme={theme} />
+          </div>
+        </>
+      )}
     </>
   )
 }

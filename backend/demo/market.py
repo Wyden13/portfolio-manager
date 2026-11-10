@@ -76,6 +76,9 @@ class Market:
             bars = _walk(rng, days, rate, 0.0, vol, 0)
             self.series[pair] = Series(pair, pair[3:6], "Europe/London", bars, *([bars[-1].close] * 3), 0)
         self.days = days
+        # Yahoo quoteType per ticker, for the asset-class lookup (Ticker.info).
+        self.quote_types = {i.yahoo: "ETF" if i.security_type == "et" else "EQUITY" for i in INSTRUMENTS.values()}
+        self.quote_types.update({pair: "CURRENCY" for pair in FX_PAIRS})
         self._closes = {y: {b.day: b.close for b in s.bars} for y, s in self.series.items()}
 
     def close_on(self, yahoo: str, day: date) -> float | None:
@@ -136,6 +139,10 @@ class Ticker:
     def fast_info(self) -> FastInfo:
         return FastInfo(self._market, self.ticker)
 
+    @property
+    def info(self) -> dict:
+        return {"symbol": self.ticker, "quoteType": self._market.quote_types[self.ticker]}
+
     def history(self, start=None, end=None, interval: str = "1d", auto_adjust: bool = True, **_) -> pd.DataFrame:
         s = self._market.series[self.ticker]
         bars = list(s.bars)
@@ -149,8 +156,9 @@ class Ticker:
             index=pd.DatetimeIndex([pd.Timestamp(b.day) for b in bars], name="Date").tz_localize(s.timezone),
             columns=HISTORY_COLUMNS,
         )
-        if interval == "1wk" and not frame.empty:
-            frame = frame.resample("W-MON", label="left", closed="left").agg({
+        rule = {"1wk": "W-MON", "1mo": "MS"}.get(interval)
+        if rule and not frame.empty:
+            frame = frame.resample(rule, label="left", closed="left").agg({
                 "Open": "first", "High": "max", "Low": "min", "Close": "last", "Volume": "sum",
                 "Dividends": "sum", "Stock Splits": "sum",
             }).dropna(subset=["Close"])

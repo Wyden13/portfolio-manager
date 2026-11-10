@@ -12,7 +12,7 @@ describe('decodePnLFrame', () => {
       {
         accountId: 7n, symbol: 'AAPL', currency: 'USD', quantity: 10, averageCost: 100, costBasis: 1000,
         price: 150, marketValue: 1500, unrealizedPnl: 500, unrealizedPct: 50, firstBuyMs: 1_690_000_000_000n,
-        status: Status.OK,
+        status: Status.OK, assetClass: 'stock',
       },
       { accountId: 7n, symbol: 'XYZ', currency: 'CAD', costBasis: 200, status: Status.NO_QUOTE, incompleteHistory: true },
       { accountId: 8n, symbol: 'TD.TO', currency: 'CAD', quantity: 40, price: 90, marketValue: 3600, status: Status.NO_COST, source: Source.BROKER },
@@ -20,6 +20,12 @@ describe('decodePnLFrame', () => {
     totals: [{ currency: 'USD', costBasis: 1000, marketValue: 1500, unrealizedPnl: 500, unrealizedPct: 50 }],
     baseTotal: { currency: 'CAD', costBasis: 1360, marketValue: 2040, unrealizedPnl: 680, unrealizedPct: 50 },
     fxRates: { USD: 1.36 },
+    accounts: [{
+      accountId: 7n, marketValue: 2040, costBasis: 1360, unrealizedPnl: 680, unrealizedPct: 50,
+      cash: [{ currency: 'USD', amount: 25, estimated: true }], cashValue: 34, total: 2074, holdings: 2, complete: true,
+    }, { accountId: 8n, total: 3600, holdings: 1 }],
+    baseCurrency: 'CAD',
+    totalAssetsBase: 5674,
   })))
 
   it('maps a priced position', () => {
@@ -60,5 +66,16 @@ describe('decodePnLFrame', () => {
 
   it('rejects garbage', () => {
     expect(() => decodePnLFrame('!!!not base64!!!')).toThrow()
+  })
+
+  it('maps account summaries, cash and the base totals, keeping unset optionals null', () => {
+    const snap = decodePnLFrame(frame)
+    expect(snap.accounts[0]).toEqual({
+      account_id: 7, market_value: 2040, cost_basis: 1360, unrealized_pnl: 680, unrealized_pct: 50,
+      cash: [{ currency: 'USD', amount: 25, estimated: true }], cash_value: 34, total: 2074, holdings: 2, complete: true,
+    })
+    expect(snap.accounts[1]).toMatchObject({ account_id: 8, unrealized_pct: null, cash: [], complete: false })
+    expect([snap.base_currency, snap.cash_base, snap.total_assets_base]).toEqual(['CAD', null, 5674])
+    expect(snap.positions.map((p) => p.asset_class)).toEqual(['stock', 'other', 'other'])
   })
 })

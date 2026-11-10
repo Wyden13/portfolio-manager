@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file pnl.proto.
  */
 export const file_pnl: GenFile = /*@__PURE__*/
-  fileDesc("CglwbmwucHJvdG8SD2ludmVzdGlxLnBubC52MSKdAgoJUG5MVXBkYXRlEhAKCGFzX29mX21zGAEgASgDEi8KCXBvc2l0aW9ucxgCIAMoCzIcLmludmVzdGlxLnBubC52MS5Qb3NpdGlvblBuTBIuCgZ0b3RhbHMYAyADKAsyHi5pbnZlc3RpcS5wbmwudjEuQ3VycmVuY3lUb3RhbBIyCgpiYXNlX3RvdGFsGAQgASgLMh4uaW52ZXN0aXEucG5sLnYxLkN1cnJlbmN5VG90YWwSOQoIZnhfcmF0ZXMYBSADKAsyJy5pbnZlc3RpcS5wbmwudjEuUG5MVXBkYXRlLkZ4UmF0ZXNFbnRyeRouCgxGeFJhdGVzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgBOgI4ASLwAgoLUG9zaXRpb25QbkwSEgoKYWNjb3VudF9pZBgBIAEoAxIOCgZzeW1ib2wYAiABKAkSEAoIY3VycmVuY3kYAyABKAkSEAoIcXVhbnRpdHkYBCABKAESFAoMYXZlcmFnZV9jb3N0GAUgASgBEhIKCmNvc3RfYmFzaXMYBiABKAESDQoFcHJpY2UYByABKAESFAoMbWFya2V0X3ZhbHVlGAggASgBEhYKDnVucmVhbGl6ZWRfcG5sGAkgASgBEhYKDnVucmVhbGl6ZWRfcGN0GAogASgBEhQKDGZpcnN0X2J1eV9tcxgLIAEoAxIWCg5xdW90ZV9hc19vZl9tcxgMIAEoAxInCgZzdGF0dXMYDSABKA4yFy5pbnZlc3RpcS5wbmwudjEuU3RhdHVzEhoKEmluY29tcGxldGVfaGlzdG9yeRgOIAEoCBInCgZzb3VyY2UYDyABKA4yFy5pbnZlc3RpcS5wbmwudjEuU291cmNlInsKDUN1cnJlbmN5VG90YWwSEAoIY3VycmVuY3kYASABKAkSEgoKY29zdF9iYXNpcxgCIAEoARIUCgxtYXJrZXRfdmFsdWUYAyABKAESFgoOdW5yZWFsaXplZF9wbmwYBCABKAESFgoOdW5yZWFsaXplZF9wY3QYBSABKAEqNAoGU291cmNlEhcKE1NPVVJDRV9UUkFOU0FDVElPTlMQABIRCg1TT1VSQ0VfQlJPS0VSEAEqXgoGU3RhdHVzEg0KCVNUQVRVU19PSxAAEhMKD1NUQVRVU19OT19RVU9URRABEhwKGFNUQVRVU19DVVJSRU5DWV9NSVNNQVRDSBACEhIKDlNUQVRVU19OT19DT1NUEANiBnByb3RvMw");
+  fileDesc("CglwbmwucHJvdG8SD2ludmVzdGlxLnBubC52MSLDAwoJUG5MVXBkYXRlEhAKCGFzX29mX21zGAEgASgDEi8KCXBvc2l0aW9ucxgCIAMoCzIcLmludmVzdGlxLnBubC52MS5Qb3NpdGlvblBuTBIuCgZ0b3RhbHMYAyADKAsyHi5pbnZlc3RpcS5wbmwudjEuQ3VycmVuY3lUb3RhbBIyCgpiYXNlX3RvdGFsGAQgASgLMh4uaW52ZXN0aXEucG5sLnYxLkN1cnJlbmN5VG90YWwSOQoIZnhfcmF0ZXMYBSADKAsyJy5pbnZlc3RpcS5wbmwudjEuUG5MVXBkYXRlLkZ4UmF0ZXNFbnRyeRIxCghhY2NvdW50cxgGIAMoCzIfLmludmVzdGlxLnBubC52MS5BY2NvdW50U3VtbWFyeRIWCgljYXNoX2Jhc2UYByABKAFIAIgBARIeChF0b3RhbF9hc3NldHNfYmFzZRgIIAEoAUgBiAEBEhUKDWJhc2VfY3VycmVuY3kYCSABKAkaLgoMRnhSYXRlc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoAToCOAFCDAoKX2Nhc2hfYmFzZUIUChJfdG90YWxfYXNzZXRzX2Jhc2UiiQIKDkFjY291bnRTdW1tYXJ5EhIKCmFjY291bnRfaWQYASABKAMSFAoMbWFya2V0X3ZhbHVlGAIgASgBEhIKCmNvc3RfYmFzaXMYAyABKAESFgoOdW5yZWFsaXplZF9wbmwYBCABKAESGwoOdW5yZWFsaXplZF9wY3QYBSABKAFIAIgBARIqCgRjYXNoGAYgAygLMhwuaW52ZXN0aXEucG5sLnYxLkNhc2hCYWxhbmNlEhIKCmNhc2hfdmFsdWUYByABKAESDQoFdG90YWwYCCABKAESEAoIaG9sZGluZ3MYCSABKAUSEAoIY29tcGxldGUYCiABKAhCEQoPX3VucmVhbGl6ZWRfcGN0IkIKC0Nhc2hCYWxhbmNlEhAKCGN1cnJlbmN5GAEgASgJEg4KBmFtb3VudBgCIAEoARIRCgllc3RpbWF0ZWQYAyABKAgihQMKC1Bvc2l0aW9uUG5MEhIKCmFjY291bnRfaWQYASABKAMSDgoGc3ltYm9sGAIgASgJEhAKCGN1cnJlbmN5GAMgASgJEhAKCHF1YW50aXR5GAQgASgBEhQKDGF2ZXJhZ2VfY29zdBgFIAEoARISCgpjb3N0X2Jhc2lzGAYgASgBEg0KBXByaWNlGAcgASgBEhQKDG1hcmtldF92YWx1ZRgIIAEoARIWCg51bnJlYWxpemVkX3BubBgJIAEoARIWCg51bnJlYWxpemVkX3BjdBgKIAEoARIUCgxmaXJzdF9idXlfbXMYCyABKAMSFgoOcXVvdGVfYXNfb2ZfbXMYDCABKAMSJwoGc3RhdHVzGA0gASgOMhcuaW52ZXN0aXEucG5sLnYxLlN0YXR1cxIaChJpbmNvbXBsZXRlX2hpc3RvcnkYDiABKAgSJwoGc291cmNlGA8gASgOMhcuaW52ZXN0aXEucG5sLnYxLlNvdXJjZRITCgthc3NldF9jbGFzcxgQIAEoCSJ7Cg1DdXJyZW5jeVRvdGFsEhAKCGN1cnJlbmN5GAEgASgJEhIKCmNvc3RfYmFzaXMYAiABKAESFAoMbWFya2V0X3ZhbHVlGAMgASgBEhYKDnVucmVhbGl6ZWRfcG5sGAQgASgBEhYKDnVucmVhbGl6ZWRfcGN0GAUgASgBKjQKBlNvdXJjZRIXChNTT1VSQ0VfVFJBTlNBQ1RJT05TEAASEQoNU09VUkNFX0JST0tFUhABKl4KBlN0YXR1cxINCglTVEFUVVNfT0sQABITCg9TVEFUVVNfTk9fUVVPVEUQARIcChhTVEFUVVNfQ1VSUkVOQ1lfTUlTTUFUQ0gQAhISCg5TVEFUVVNfTk9fQ09TVBADYgZwcm90bzM");
 
 /**
  * One SSE event carries one PnLUpdate, serialized and base64-encoded in the `data:` field.
@@ -49,6 +49,32 @@ export type PnLUpdate = Message<"investiq.pnl.v1.PnLUpdate"> & {
    * @generated from field: map<string, double> fx_rates = 5;
    */
   fxRates: { [key: string]: number };
+
+  /**
+   * empty when FX is not configured
+   *
+   * @generated from field: repeated investiq.pnl.v1.AccountSummary accounts = 6;
+   */
+  accounts: AccountSummary[];
+
+  /**
+   * Base-currency cash, and holdings plus cash, across all accounts. Unset when a rate was missing.
+   *
+   * @generated from field: optional double cash_base = 7;
+   */
+  cashBase?: number | undefined;
+
+  /**
+   * @generated from field: optional double total_assets_base = 8;
+   */
+  totalAssetsBase?: number | undefined;
+
+  /**
+   * what base_total, accounts and the *_base fields are in; empty without FX
+   *
+   * @generated from field: string base_currency = 9;
+   */
+  baseCurrency: string;
 };
 
 /**
@@ -57,6 +83,111 @@ export type PnLUpdate = Message<"investiq.pnl.v1.PnLUpdate"> & {
  */
 export const PnLUpdateSchema: GenMessage<PnLUpdate> = /*@__PURE__*/
   messageDesc(file_pnl, 0);
+
+/**
+ * One account in the base currency at spot FX.
+ *
+ * @generated from message investiq.pnl.v1.AccountSummary
+ */
+export type AccountSummary = Message<"investiq.pnl.v1.AccountSummary"> & {
+  /**
+   * @generated from field: int64 account_id = 1;
+   */
+  accountId: bigint;
+
+  /**
+   * holdings with a live price, cost basis or not
+   *
+   * @generated from field: double market_value = 2;
+   */
+  marketValue: number;
+
+  /**
+   * of the holdings that have one
+   *
+   * @generated from field: double cost_basis = 3;
+   */
+  costBasis: number;
+
+  /**
+   * @generated from field: double unrealized_pnl = 4;
+   */
+  unrealizedPnl: number;
+
+  /**
+   * unset when no holding has a cost basis
+   *
+   * @generated from field: optional double unrealized_pct = 5;
+   */
+  unrealizedPct?: number | undefined;
+
+  /**
+   * @generated from field: repeated investiq.pnl.v1.CashBalance cash = 6;
+   */
+  cash: CashBalance[];
+
+  /**
+   * @generated from field: double cash_value = 7;
+   */
+  cashValue: number;
+
+  /**
+   * market_value + cash_value
+   *
+   * @generated from field: double total = 8;
+   */
+  total: number;
+
+  /**
+   * @generated from field: int32 holdings = 9;
+   */
+  holdings: number;
+
+  /**
+   * false when a currency had no FX rate and was left out
+   *
+   * @generated from field: bool complete = 10;
+   */
+  complete: boolean;
+};
+
+/**
+ * Describes the message investiq.pnl.v1.AccountSummary.
+ * Use `create(AccountSummarySchema)` to create a new message.
+ */
+export const AccountSummarySchema: GenMessage<AccountSummary> = /*@__PURE__*/
+  messageDesc(file_pnl, 1);
+
+/**
+ * Cash computed from the stored activity history, in its own currency.
+ *
+ * @generated from message investiq.pnl.v1.CashBalance
+ */
+export type CashBalance = Message<"investiq.pnl.v1.CashBalance"> & {
+  /**
+   * @generated from field: string currency = 1;
+   */
+  currency: string;
+
+  /**
+   * @generated from field: double amount = 2;
+   */
+  amount: number;
+
+  /**
+   * the stored history may not reach back to the account's opening
+   *
+   * @generated from field: bool estimated = 3;
+   */
+  estimated: boolean;
+};
+
+/**
+ * Describes the message investiq.pnl.v1.CashBalance.
+ * Use `create(CashBalanceSchema)` to create a new message.
+ */
+export const CashBalanceSchema: GenMessage<CashBalance> = /*@__PURE__*/
+  messageDesc(file_pnl, 2);
 
 /**
  * @generated from message investiq.pnl.v1.PositionPnL
@@ -147,6 +278,13 @@ export type PositionPnL = Message<"investiq.pnl.v1.PositionPnL"> & {
    * @generated from field: investiq.pnl.v1.Source source = 15;
    */
   source: Source;
+
+  /**
+   * stock | etf | fund | other
+   *
+   * @generated from field: string asset_class = 16;
+   */
+  assetClass: string;
 };
 
 /**
@@ -154,7 +292,7 @@ export type PositionPnL = Message<"investiq.pnl.v1.PositionPnL"> & {
  * Use `create(PositionPnLSchema)` to create a new message.
  */
 export const PositionPnLSchema: GenMessage<PositionPnL> = /*@__PURE__*/
-  messageDesc(file_pnl, 1);
+  messageDesc(file_pnl, 3);
 
 /**
  * Totals only include positions priced successfully, grouped by currency (no FX conversion).
@@ -193,7 +331,7 @@ export type CurrencyTotal = Message<"investiq.pnl.v1.CurrencyTotal"> & {
  * Use `create(CurrencyTotalSchema)` to create a new message.
  */
 export const CurrencyTotalSchema: GenMessage<CurrencyTotal> = /*@__PURE__*/
-  messageDesc(file_pnl, 2);
+  messageDesc(file_pnl, 4);
 
 /**
  * Where quantity and cost come from: our stored transactions when they reproduce the broker's

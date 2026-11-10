@@ -9,9 +9,14 @@ import { PALETTES, type Theme } from '../lib/theme'
 import type { Candle, HistoryInterval, HistoryRange } from '../types'
 import { Empty, Panel, Segmented } from './Panel'
 
-const RANGES: readonly HistoryRange[] = ['1M', '3M', '6M', '1Y']
-const INTERVALS: readonly HistoryInterval[] = ['1d', '1wk']
-const INTERVAL_LABEL: Record<HistoryInterval, string> = { '1d': 'Daily', '1wk': 'Weekly' }
+const RANGES: readonly HistoryRange[] = ['1M', '3M', '6M', '1Y', '5Y', 'ALL']
+const RANGE_LABEL: Partial<Record<HistoryRange, string>> = { ALL: 'All' }
+const INTERVALS: readonly HistoryInterval[] = ['1d', '1wk', '1mo']
+const INTERVAL_LABEL: Record<HistoryInterval, string> = { '1d': 'Daily', '1wk': 'Weekly', '1mo': 'Monthly' }
+// Picking a range picks a candle size that keeps the bar count readable; the user can still change it.
+const RANGE_INTERVAL: Record<HistoryRange, HistoryInterval> = {
+  '1M': '1d', '3M': '1d', '6M': '1d', '1Y': '1d', '5Y': '1wk', ALL: '1mo',
+}
 const HEIGHT = 380
 const NO_CANDLES: Candle[] = []
 
@@ -96,7 +101,8 @@ export function CandlePanel({ symbols, theme }: Props) {
               {symbols.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
           </label>
-          <Segmented label="Time range" value={range} options={RANGES} onChange={setRange} />
+          <Segmented label="Time range" value={range} options={RANGES} format={(r) => RANGE_LABEL[r] ?? r}
+            onChange={(r) => { setRange(r); setInterval_(RANGE_INTERVAL[r]) }} />
           <Segmented label="Candle interval" value={interval} options={INTERVALS} onChange={setInterval_} format={(i) => INTERVAL_LABEL[i]} />
         </>
       )}
@@ -108,7 +114,7 @@ export function CandlePanel({ symbols, theme }: Props) {
       {/* The chart stays mounted (it is expensive to rebuild) and is only hidden between loads. */}
       <div
         ref={host} role="img" hidden={!showChart} style={{ height: HEIGHT }}
-        aria-label={`Candlestick chart with volume for ${active ?? 'no ticker'}, ${range} range, ${INTERVAL_LABEL[interval].toLowerCase()} candles`}
+        aria-label={`Candlestick chart with volume for ${active ?? 'no ticker'}, ${RANGE_LABEL[range] ?? range} range, ${INTERVAL_LABEL[interval].toLowerCase()} candles`}
       />
     </Panel>
   )

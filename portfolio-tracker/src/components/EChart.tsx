@@ -15,9 +15,11 @@ interface Props {
   option: EChartOption
   label: string
   height?: number
+  /** Replace the series list on update instead of merging it (when series come and go). */
+  replaceSeries?: boolean
 }
 
-export function EChart({ option, label, height = 320 }: Props) {
+export function EChart({ option, label, height = 320, replaceSeries = false }: Props) {
   const ref = useRef<HTMLDivElement>(null)
   const chart = useRef<echarts.ECharts | null>(null)
 
@@ -38,8 +40,8 @@ export function EChart({ option, label, height = 320 }: Props) {
   useEffect(() => {
     // Merge rather than replace, so a price tick animates values in place instead of redrawing the
     // chart from scratch. Data arrays are replaced wholesale by a merge, so removed rows disappear.
-    chart.current?.setOption(option)
-  }, [option])
+    chart.current?.setOption(option, replaceSeries ? { replaceMerge: ['series'] } : undefined)
+  }, [option, replaceSeries])
 
   return <div ref={ref} role="img" aria-label={label} style={{ width: '100%', height }} />
 }

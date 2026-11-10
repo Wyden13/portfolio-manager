@@ -1,6 +1,6 @@
 import { fromBinary } from '@bufbuild/protobuf'
-import { PnLUpdateSchema, Source, Status, type CurrencyTotal as ProtoTotal } from '../gen/pnl_pb'
-import type { CurrencyTotal, PortfolioSnapshot, PositionStatus } from '../types'
+import { PnLUpdateSchema, Source, Status, type AccountSummary as ProtoAccount, type CurrencyTotal as ProtoTotal } from '../gen/pnl_pb'
+import type { AccountSummary, AssetClass, CurrencyTotal, PortfolioSnapshot, PositionStatus } from '../types'
 
 const STATUS: Record<number, PositionStatus> = {
   [Status.OK]: 'ok',
@@ -15,6 +15,22 @@ const total = (t: ProtoTotal): CurrencyTotal => ({
   market_value: t.marketValue,
   unrealized_pnl: t.unrealizedPnl,
   unrealized_pct: t.unrealizedPct,
+})
+
+const ASSET_CLASSES: readonly string[] = ['stock', 'etf', 'fund', 'other'] satisfies AssetClass[]
+const assetClass = (c: string): AssetClass => (ASSET_CLASSES.includes(c) ? c as AssetClass : 'other')
+
+const account = (a: ProtoAccount): AccountSummary => ({
+  account_id: Number(a.accountId),
+  market_value: a.marketValue,
+  cost_basis: a.costBasis,
+  unrealized_pnl: a.unrealizedPnl,
+  unrealized_pct: a.unrealizedPct ?? null,
+  cash: a.cash.map((c) => ({ currency: c.currency, amount: c.amount, estimated: c.estimated })),
+  cash_value: a.cashValue,
+  total: a.total,
+  holdings: a.holdings,
+  complete: a.complete,
 })
 
 export function base64ToBytes(b64: string): Uint8Array {
@@ -50,10 +66,15 @@ export function decodePnLFrame(b64: string): PortfolioSnapshot {
         first_buy_at: p.firstBuyMs ? new Date(Number(p.firstBuyMs)).toISOString() : null,
         incomplete_history: p.incompleteHistory,
         source: p.source === Source.BROKER ? 'broker' : 'transactions',
+        asset_class: assetClass(p.assetClass),
       }
     }),
     totals: msg.totals.map(total),
     base_total: msg.baseTotal ? total(msg.baseTotal) : null,
     fx_rates: { ...msg.fxRates },
+    accounts: msg.accounts.map(account),
+    base_currency: msg.baseCurrency || null,
+    cash_base: msg.cashBase ?? null,
+    total_assets_base: msg.totalAssetsBase ?? null,
   }
 }

@@ -16,6 +16,8 @@ _SUFFIXES = {".TO": ".TO", ".V": ".V", ".VN": ".V", ".CN": ".CN", ".NE": ".NE"} 
 }
 # Yahoo quotes some listings in a currency's minor unit (LSE in pence, JSE in cents).
 _MINOR_UNITS = {"GBp": ("GBP", 100), "GBX": ("GBP", 100), "ZAc": ("ZAR", 100), "ILA": ("ILS", 100)}
+# Yahoo quoteType -> our asset class.
+_ASSET_CLASSES = {"EQUITY": "stock", "ETF": "etf", "MUTUALFUND": "fund"}
 
 
 @dataclass
@@ -81,13 +83,17 @@ class QuoteProvider(ABC):
     async def get_quotes(self, symbols: list[str]) -> dict[str, Quote]:
         """Return quotes for the symbols that could be priced; unknown symbols are omitted."""
 
+    async def get_asset_classes(self, symbols: list[str]) -> dict[str, str]:
+        """stock | etf | fund | other per symbol; symbols it can't classify may be omitted (other)."""
+        return {}
+
 
 class HistoryProvider(ABC):
     """Source of historical OHLC bars."""
 
     @abstractmethod
     async def get_history(self, symbol: str, start: date, end: date, interval: str) -> PriceHistory:
-        """Bars from start to end inclusive; interval is "1d" or "1wk". Empty candles if unknown."""
+        """Bars from start to end inclusive; interval is "1d", "1wk" or "1mo". Empty candles if unknown."""
 
 
 class YFinanceProvider(QuoteProvider, HistoryProvider):
@@ -95,6 +101,9 @@ class YFinanceProvider(QuoteProvider, HistoryProvider):
 
     # Charts refetch on every range switch; keep Yahoo calls down without serving stale bars long.
     HISTORY_TTL_SECONDS = 60
+    # Ticker.info is slow (a full quote-summary call) and a listing's type doesn't change.
+    CLASS_TTL_SECONDS = 24 * 3600
+    CLASS_FAILURE_TTL_SECONDS = 600
 
     def __init__(self, ticker_factory=None):
         if ticker_factory is None:
@@ -103,6 +112,23 @@ class YFinanceProvider(QuoteProvider, HistoryProvider):
             ticker_factory = yfinance.Ticker
         self._ticker = ticker_factory
         self._history_cache: dict[tuple, tuple[float, PriceHistory]] = {}
+        self._class_cache: dict[str, tuple[float, str]] = {}  # symbol -> (expires, class)
+
+    def _fetch_class(self, symbol: str) -> tuple[str, bool]:
+        try:
+            quote_type = (self._ticker(to_yahoo_symbol(symbol)).info or {}).get("quoteType") or ""
+        except Exception:
+            return "other", False
+        return _ASSET_CLASSES.get(quote_type.upper(), "other"), True
+
+    async def get_asset_classes(self, symbols: list[str]) -> dict[str, str]:
+        now = time.monotonic()
+        missing = sorted({s for s in symbols if self._class_cache.get(s, (0.0, ""))[0] <= now})
+        results = await asyncio.gather(*(asyncio.to_thread(self._fetch_class, s) for s in missing))
+        for symbol, (asset_class, ok) in zip(missing, results):
+            ttl = self.CLASS_TTL_SECONDS if ok else self.CLASS_FAILURE_TTL_SECONDS
+            self._class_cache[symbol] = (now + ttl, asset_class)
+        return {s: self._class_cache[s][1] for s in symbols}
 
     def _fetch(self, symbol: str) -> Quote | None:
         try:

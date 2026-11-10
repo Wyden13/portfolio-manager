@@ -67,6 +67,9 @@ async def test_events_are_base64_protobuf(seeded):
     assert p.source == pnl_pb2.SOURCE_TRANSACTIONS
     assert update.totals[0].currency == "CAD" and update.totals[0].market_value == 1100.0
     assert update.HasField("base_total") and update.base_total.unrealized_pnl == 100.0
+    assert p.asset_class == "other"  # the fake provider can't classify
+    assert [(a.account_id, a.total, a.holdings, a.complete) for a in update.accounts] == [(1, 1100.0, 1, True)]
+    assert update.HasField("total_assets_base") and update.total_assets_base == 1100.0
     assert p.first_buy_ms == int(datetime(2026, 1, 2).replace(tzinfo=__import__("datetime").timezone.utc).timestamp() * 1000)
 
 
@@ -105,6 +108,9 @@ def test_rest_endpoints(seeded):
         assert body["positions"][0]["unrealized_pnl"] == -100.0
         assert body["totals"][0]["unrealized_pct"] == -10.0
         assert body["base_total"]["currency"] == "CAD" and body["positions"][0]["source"] == "transactions"
+        assert body["positions"][0]["asset_class"] == "other"
+        assert body["accounts"][0]["total"] == 900.0 and body["accounts"][0]["cash"] == []
+        assert (body["base_currency"], body["cash_base"], body["total_assets_base"]) == ("CAD", 0.0, 900.0)
         txs = client.get("/api/transactions", params={"symbol": "RY.TO"}).json()
         assert [t["kind"] for t in txs["items"]] == ["BUY"] and txs["total"] == 1
         assert client.get("/api/transactions", params={"symbol": "NOPE"}).json()["items"] == []

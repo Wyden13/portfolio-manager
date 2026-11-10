@@ -57,7 +57,7 @@ export function TreemapPanel({ snapshot, currency, theme }: Props) {
   }, [rows, labels, currency, theme, accountLabel])
 
   return (
-    <Panel title="Holdings map" className="span-8">
+    <Panel title="Holdings map" className="span-6">
       {rows.length === 0 ? <Empty height={HEIGHT}>No {currency} holdings with a live price.</Empty> : (
         <EChart option={option} height={HEIGHT} label={`Treemap of ${rows.length} ${currency} holdings sized by market value and coloured by unrealized return`} />
       )}

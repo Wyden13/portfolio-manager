@@ -3,6 +3,8 @@
 export type PositionStatus = 'ok' | 'no_cost' | 'no_quote' | 'currency_mismatch'
 /** Where quantity and cost come from: stored transactions, or the broker's own position report. */
 export type CostSource = 'transactions' | 'broker'
+/** From Yahoo's quote type; `other` when it couldn't be classified. */
+export type AssetClass = 'stock' | 'etf' | 'fund' | 'other'
 
 export interface Position {
   account_id: number
@@ -19,6 +21,32 @@ export interface Position {
   first_buy_at: string | null
   incomplete_history: boolean
   source: CostSource
+  asset_class: AssetClass
+}
+
+/** Cash computed from the stored activity history, in its own currency. */
+export interface CashBalance {
+  currency: string
+  amount: number
+  /** The stored history may not reach back to the account's opening, so the sum may be off. */
+  estimated: boolean
+}
+
+/** One account in the base currency at spot FX. */
+export interface AccountSummary {
+  account_id: number
+  /** Holdings with a live price, cost basis or not. */
+  market_value: number
+  cost_basis: number
+  unrealized_pnl: number
+  unrealized_pct: number | null
+  cash: CashBalance[]
+  cash_value: number
+  /** market_value + cash_value */
+  total: number
+  holdings: number
+  /** False when a currency had no FX rate and was left out. */
+  complete: boolean
 }
 
 export interface CurrencyTotal {
@@ -38,6 +66,12 @@ export interface PortfolioSnapshot {
   base_total: CurrencyTotal | null
   /** Base-currency units per one unit of each currency. */
   fx_rates: Record<string, number>
+  accounts: AccountSummary[]
+  /** Currency of base_total, accounts and the *_base fields; null when FX isn't available. */
+  base_currency: string | null
+  /** Across all accounts; null when a rate is missing. */
+  cash_base: number | null
+  total_assets_base: number | null
 }
 
 export interface Candle {
@@ -50,8 +84,8 @@ export interface Candle {
   volume: number
 }
 
-export type HistoryRange = '1M' | '3M' | '6M' | '1Y'
-export type HistoryInterval = '1d' | '1wk'
+export type HistoryRange = '1M' | '3M' | '6M' | '1Y' | '5Y' | 'ALL'
+export type HistoryInterval = '1d' | '1wk' | '1mo'
 
 /** GET /api/history/{ticker}?range=&interval= */
 export interface HistoryResponse {
@@ -68,11 +102,13 @@ export interface ValuePoint {
   value: number
 }
 
-/** GET /api/portfolio/value?range=&currency= */
-export interface ValueHistoryResponse {
+/** GET /api/portfolio/value/accounts?range=: holdings plus cash, at today's spot FX. */
+export interface AccountValueHistoryResponse {
   currency: string
   range: HistoryRange
-  points: ValuePoint[]
+  interval: HistoryInterval
+  accounts: Array<{ account_id: number; points: ValuePoint[] }>
+  total: ValuePoint[]
 }
 
 export type TransactionKind = 'BUY' | 'SELL' | 'DIVIDEND' | 'FEE' | 'DEPOSIT' | 'WITHDRAWAL' | 'OTHER'

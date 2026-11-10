@@ -44,8 +44,43 @@ a.btn { display: inline-block; text-decoration: none; font-size: 14px; }
 .card.flat .spark { color: var(--muted); }
 .card.headline { grid-column: 1 / -1; }
 .card.headline .big { font-size: 34px; }
-.card .rates { display: block; margin-top: 2px; font-size: 12px; }
 .spark { display: block; width: 100%; height: 32px; margin-top: 10px; }
+.section-title { font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.chart-note { margin-top: 6px; font-size: 12px; }
+.pill.est { margin-left: 6px; padding: 0 6px; font-size: 11px; font-weight: 600; text-transform: none; letter-spacing: 0; color: var(--muted); cursor: help; }
+
+/* Dashboard: total assets and allocation in one card, next to the account performance chart. */
+.total-body { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr)); gap: 16px 24px; align-items: start; }
+.total-summary { min-width: 0; font-variant-numeric: tabular-nums; }
+.eyebrow { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.total-summary .big { font-size: 34px; font-weight: 700; margin: 6px 0 2px; letter-spacing: -0.01em; overflow-wrap: anywhere; }
+.total-summary .delta, .account-card .delta { font-weight: 600; font-variant-numeric: tabular-nums; }
+.total-summary .pct, .account-card .pct { margin-left: 4px; padding: 1px 6px; border-radius: 6px; font-size: 13px; background: color-mix(in srgb, currentColor 12%, transparent); }
+.total-summary.gain .delta, .total-summary.gain .spark { color: var(--gain); }
+.total-summary.loss .delta, .total-summary.loss .spark { color: var(--loss); }
+.total-summary.flat .spark { color: var(--muted); }
+.total-summary .rates { margin-top: 6px; font-size: 12px; }
+.total-allocation { min-width: 0; }
+.total-allocation .legend { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
+.split { display: grid; gap: 6px; margin: 14px 0 0; padding-top: 12px; border-top: 1px solid var(--border); font-size: 14px; }
+.split div { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.split dt { color: var(--muted); }
+.split dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+.split dd.loss { color: var(--loss); }
+
+/* One card per account. */
+.account-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 12px; margin: 12px 0 24px; }
+.account-card { display: flex; flex-direction: column; min-width: 0; }
+.account-card .big { font-size: 24px; margin-top: 12px; }
+.account-card.gain .delta { color: var(--gain); }
+.account-card.loss .delta { color: var(--loss); }
+.account-card .split { margin-top: 12px; }
+.account-card > .muted { margin-top: 8px; }
+.account-head { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.account-title { flex: 1; min-width: 0; }
+.account-title h3 { display: flex; align-items: center; gap: 6px; font-size: 15px; font-weight: 600; color: var(--text); text-transform: none; letter-spacing: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.account-title .swatch { flex: none; width: 10px; height: 10px; border-radius: 50%; }
+.account-head .share { flex: none; align-self: flex-start; font-variant-numeric: tabular-nums; }
 
 .grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 12px; }
 .panel { grid-column: span 12; min-width: 0; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px; box-shadow: var(--shadow); }
@@ -69,6 +104,8 @@ a.btn { display: inline-block; text-decoration: none; font-size: 14px; }
 .segmented button + button { border-left: 1px solid var(--border); }
 .segmented button[aria-pressed='true'] { background: var(--accent); color: var(--on-accent); }
 .select select { padding: 4px 28px 4px 10px; font-size: 13.5px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface); color: var(--text); }
+
+.grid + .account-grid { margin-top: 12px; }
 
 @media (min-width: 900px) {
   .span-4 { grid-column: span 4; }

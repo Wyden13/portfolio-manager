@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\tpnl.proto\x12\x0finvestiq.pnl.v1\"\x9d\x02\n\tPnLUpdate\x12\x10\n\x08\x61s_of_ms\x18\x01 \x01(\x03\x12/\n\tpositions\x18\x02 \x03(\x0b\x32\x1c.investiq.pnl.v1.PositionPnL\x12.\n\x06totals\x18\x03 \x03(\x0b\x32\x1e.investiq.pnl.v1.CurrencyTotal\x12\x32\n\nbase_total\x18\x04 \x01(\x0b\x32\x1e.investiq.pnl.v1.CurrencyTotal\x12\x39\n\x08\x66x_rates\x18\x05 \x03(\x0b\x32\'.investiq.pnl.v1.PnLUpdate.FxRatesEntry\x1a.\n\x0c\x46xRatesEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\x01:\x02\x38\x01\"\xf0\x02\n\x0bPositionPnL\x12\x12\n\naccount_id\x18\x01 \x01(\x03\x12\x0e\n\x06symbol\x18\x02 \x01(\t\x12\x10\n\x08\x63urrency\x18\x03 \x01(\t\x12\x10\n\x08quantity\x18\x04 \x01(\x01\x12\x14\n\x0c\x61verage_cost\x18\x05 \x01(\x01\x12\x12\n\ncost_basis\x18\x06 \x01(\x01\x12\r\n\x05price\x18\x07 \x01(\x01\x12\x14\n\x0cmarket_value\x18\x08 \x01(\x01\x12\x16\n\x0eunrealized_pnl\x18\t \x01(\x01\x12\x16\n\x0eunrealized_pct\x18\n \x01(\x01\x12\x14\n\x0c\x66irst_buy_ms\x18\x0b \x01(\x03\x12\x16\n\x0equote_as_of_ms\x18\x0c \x01(\x03\x12\'\n\x06status\x18\r \x01(\x0e\x32\x17.investiq.pnl.v1.Status\x12\x1a\n\x12incomplete_history\x18\x0e \x01(\x08\x12\'\n\x06source\x18\x0f \x01(\x0e\x32\x17.investiq.pnl.v1.Source\"{\n\rCurrencyTotal\x12\x10\n\x08\x63urrency\x18\x01 \x01(\t\x12\x12\n\ncost_basis\x18\x02 \x01(\x01\x12\x14\n\x0cmarket_value\x18\x03 \x01(\x01\x12\x16\n\x0eunrealized_pnl\x18\x04 \x01(\x01\x12\x16\n\x0eunrealized_pct\x18\x05 \x01(\x01*4\n\x06Source\x12\x17\n\x13SOURCE_TRANSACTIONS\x10\x00\x12\x11\n\rSOURCE_BROKER\x10\x01*^\n\x06Status\x12\r\n\tSTATUS_OK\x10\x00\x12\x13\n\x0fSTATUS_NO_QUOTE\x10\x01\x12\x1c\n\x18STATUS_CURRENCY_MISMATCH\x10\x02\x12\x12\n\x0eSTATUS_NO_COST\x10\x03\x62\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\tpnl.proto\x12\x0finvestiq.pnl.v1\"\xc3\x03\n\tPnLUpdate\x12\x10\n\x08\x61s_of_ms\x18\x01 \x01(\x03\x12/\n\tpositions\x18\x02 \x03(\x0b\x32\x1c.investiq.pnl.v1.PositionPnL\x12.\n\x06totals\x18\x03 \x03(\x0b\x32\x1e.investiq.pnl.v1.CurrencyTotal\x12\x32\n\nbase_total\x18\x04 \x01(\x0b\x32\x1e.investiq.pnl.v1.CurrencyTotal\x12\x39\n\x08\x66x_rates\x18\x05 \x03(\x0b\x32\'.investiq.pnl.v1.PnLUpdate.FxRatesEntry\x12\x31\n\x08\x61\x63\x63ounts\x18\x06 \x03(\x0b\x32\x1f.investiq.pnl.v1.AccountSummary\x12\x16\n\tcash_base\x18\x07 \x01(\x01H\x00\x88\x01\x01\x12\x1e\n\x11total_assets_base\x18\x08 \x01(\x01H\x01\x88\x01\x01\x12\x15\n\rbase_currency\x18\t \x01(\t\x1a.\n\x0c\x46xRatesEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\x01:\x02\x38\x01\x42\x0c\n\n_cash_baseB\x14\n\x12_total_assets_base\"\x89\x02\n\x0e\x41\x63\x63ountSummary\x12\x12\n\naccount_id\x18\x01 \x01(\x03\x12\x14\n\x0cmarket_value\x18\x02 \x01(\x01\x12\x12\n\ncost_basis\x18\x03 \x01(\x01\x12\x16\n\x0eunrealized_pnl\x18\x04 \x01(\x01\x12\x1b\n\x0eunrealized_pct\x18\x05 \x01(\x01H\x00\x88\x01\x01\x12*\n\x04\x63\x61sh\x18\x06 \x03(\x0b\x32\x1c.investiq.pnl.v1.CashBalance\x12\x12\n\ncash_value\x18\x07 \x01(\x01\x12\r\n\x05total\x18\x08 \x01(\x01\x12\x10\n\x08holdings\x18\t \x01(\x05\x12\x10\n\x08\x63omplete\x18\n \x01(\x08\x42\x11\n\x0f_unrealized_pct\"B\n\x0b\x43\x61shBalance\x12\x10\n\x08\x63urrency\x18\x01 \x01(\t\x12\x0e\n\x06\x61mount\x18\x02 \x01(\x01\x12\x11\n\testimated\x18\x03 \x01(\x08\"\x85\x03\n\x0bPositionPnL\x12\x12\n\naccount_id\x18\x01 \x01(\x03\x12\x0e\n\x06symbol\x18\x02 \x01(\t\x12\x10\n\x08\x63urrency\x18\x03 \x01(\t\x12\x10\n\x08quantity\x18\x04 \x01(\x01\x12\x14\n\x0c\x61verage_cost\x18\x05 \x01(\x01\x12\x12\n\ncost_basis\x18\x06 \x01(\x01\x12\r\n\x05price\x18\x07 \x01(\x01\x12\x14\n\x0cmarket_value\x18\x08 \x01(\x01\x12\x16\n\x0eunrealized_pnl\x18\t \x01(\x01\x12\x16\n\x0eunrealized_pct\x18\n \x01(\x01\x12\x14\n\x0c\x66irst_buy_ms\x18\x0b \x01(\x03\x12\x16\n\x0equote_as_of_ms\x18\x0c \x01(\x03\x12\'\n\x06status\x18\r \x01(\x0e\x32\x17.investiq.pnl.v1.Status\x12\x1a\n\x12incomplete_history\x18\x0e \x01(\x08\x12\'\n\x06source\x18\x0f \x01(\x0e\x32\x17.investiq.pnl.v1.Source\x12\x13\n\x0b\x61sset_class\x18\x10 \x01(\t\"{\n\rCurrencyTotal\x12\x10\n\x08\x63urrency\x18\x01 \x01(\t\x12\x12\n\ncost_basis\x18\x02 \x01(\x01\x12\x14\n\x0cmarket_value\x18\x03 \x01(\x01\x12\x16\n\x0eunrealized_pnl\x18\x04 \x01(\x01\x12\x16\n\x0eunrealized_pct\x18\x05 \x01(\x01*4\n\x06Source\x12\x17\n\x13SOURCE_TRANSACTIONS\x10\x00\x12\x11\n\rSOURCE_BROKER\x10\x01*^\n\x06Status\x12\r\n\tSTATUS_OK\x10\x00\x12\x13\n\x0fSTATUS_NO_QUOTE\x10\x01\x12\x1c\n\x18STATUS_CURRENCY_MISMATCH\x10\x02\x12\x12\n\x0eSTATUS_NO_COST\x10\x03\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -33,16 +33,20 @@ if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
   _globals['_PNLUPDATE_FXRATESENTRY']._loaded_options = None
   _globals['_PNLUPDATE_FXRATESENTRY']._serialized_options = b'8\001'
-  _globals['_SOURCE']._serialized_start=814
-  _globals['_SOURCE']._serialized_end=866
-  _globals['_STATUS']._serialized_start=868
-  _globals['_STATUS']._serialized_end=962
+  _globals['_SOURCE']._serialized_start=1337
+  _globals['_SOURCE']._serialized_end=1389
+  _globals['_STATUS']._serialized_start=1391
+  _globals['_STATUS']._serialized_end=1485
   _globals['_PNLUPDATE']._serialized_start=31
-  _globals['_PNLUPDATE']._serialized_end=316
-  _globals['_PNLUPDATE_FXRATESENTRY']._serialized_start=270
-  _globals['_PNLUPDATE_FXRATESENTRY']._serialized_end=316
-  _globals['_POSITIONPNL']._serialized_start=319
-  _globals['_POSITIONPNL']._serialized_end=687
-  _globals['_CURRENCYTOTAL']._serialized_start=689
-  _globals['_CURRENCYTOTAL']._serialized_end=812
+  _globals['_PNLUPDATE']._serialized_end=482
+  _globals['_PNLUPDATE_FXRATESENTRY']._serialized_start=400
+  _globals['_PNLUPDATE_FXRATESENTRY']._serialized_end=446
+  _globals['_ACCOUNTSUMMARY']._serialized_start=485
+  _globals['_ACCOUNTSUMMARY']._serialized_end=750
+  _globals['_CASHBALANCE']._serialized_start=752
+  _globals['_CASHBALANCE']._serialized_end=818
+  _globals['_POSITIONPNL']._serialized_start=821
+  _globals['_POSITIONPNL']._serialized_end=1210
+  _globals['_CURRENCYTOTAL']._serialized_start=1212
+  _globals['_CURRENCYTOTAL']._serialized_end=1335
 # @@protoc_insertion_point(module_scope)

@@ -106,8 +106,8 @@ def test_rest_endpoints(seeded):
         assert body["totals"][0]["unrealized_pct"] == -10.0
         assert body["base_total"]["currency"] == "CAD" and body["positions"][0]["source"] == "transactions"
         txs = client.get("/api/transactions", params={"symbol": "RY.TO"}).json()
-        assert [t["kind"] for t in txs] == ["BUY"]
-        assert client.get("/api/transactions", params={"symbol": "NOPE"}).json() == []
+        assert [t["kind"] for t in txs["items"]] == ["BUY"] and txs["total"] == 1
+        assert client.get("/api/transactions", params={"symbol": "NOPE"}).json()["items"] == []
     finally:
         app.dependency_overrides.clear()
 

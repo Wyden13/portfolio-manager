@@ -184,6 +184,18 @@ const csvCell = (v: string | number | null | undefined) => {
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
 }
 
+/** Save `text` as a CSV file through the browser. */
+export function downloadCsv(text: string, filename: string) {
+  const url = URL.createObjectURL(new Blob([text], { type: 'text/csv;charset=utf-8' }))
+  const a = Object.assign(document.createElement('a'), { href: url, download: filename })
+  document.body.append(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
+}
+
+export const csvName = (what: string) => `${what}-${new Date().toISOString().slice(0, 10)}.csv`
+
 /** The rows as CSV: native amounts with their currency, plus value and P&L in the base currency. */
 export function toCsv(rows: HoldingRow[], base: string, accountLabel: (id: number) => string): string {
   const header = [

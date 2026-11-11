@@ -1,32 +1,20 @@
 import { useCallback, useEffect, useState } from 'react'
-import { hashFor, parseHash, type Tab } from '../lib/route'
+import { hashFor, parseHash, type Route, type Tab } from '../lib/route'
 
 export type { Tab }
 
-const tabFromHash = (): Tab => parseHash(window.location.hash).tab
+const current = (): Route => parseHash(window.location.hash)
 
-/** One query parameter of the hash (`#/holdings?symbol=RY.TO` -> 'RY.TO'), following hash changes. */
-export function useHashParam(name: string): string | null {
-  const read = useCallback(() => parseHash(window.location.hash).params.get(name), [name])
-  const [value, setValue] = useState<string | null>(read)
+/** The open page and its query, kept in the URL hash (#/accounts?view=history) so reloads and Back work. */
+export function useRoute(): [Route, (tab: Tab, params?: Record<string, string>) => void] {
+  const [route, setRoute] = useState<Route>(current)
   useEffect(() => {
-    const onChange = () => setValue(read())
-    window.addEventListener('hashchange', onChange)
-    return () => window.removeEventListener('hashchange', onChange)
-  }, [read])
-  return value
-}
-
-/** The open tab, kept in the URL hash (#/ledger) so reloads and the back button work. */
-export function useHashTab(): [Tab, (tab: Tab) => void] {
-  const [tab, setTab] = useState<Tab>(tabFromHash)
-  useEffect(() => {
-    const onChange = () => setTab(tabFromHash())
+    const onChange = () => setRoute(current())
     window.addEventListener('hashchange', onChange)
     return () => window.removeEventListener('hashchange', onChange)
   }, [])
-  const open = useCallback((next: Tab) => {
-    window.location.hash = hashFor(next)
+  const open = useCallback((tab: Tab, params?: Record<string, string>) => {
+    window.location.hash = hashFor(tab, params)
   }, [])
-  return [tab, open]
+  return [route, open]
 }

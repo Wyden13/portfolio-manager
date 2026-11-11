@@ -52,3 +52,65 @@ export const tone = (value: number | null | undefined): 'gain' | 'loss' | 'flat'
 export function plural(n: number, one: string, many: string): string {
   return `${n} ${n === 1 ? one : many}`
 }
+
+// The design shows plain figures (248,312.40) with a true minus sign; the currency is stated once
+// per page or column instead of on every number.
+const MINUS = '−'
+const plainFormats = new Map<number, Intl.NumberFormat>()
+
+function plainFormat(digits: number): Intl.NumberFormat {
+  let f = plainFormats.get(digits)
+  if (!f) {
+    f = new Intl.NumberFormat('en-CA', { minimumFractionDigits: digits, maximumFractionDigits: digits })
+    plainFormats.set(digits, f)
+  }
+  return f
+}
+
+const isNumber = (v: number | null | undefined): v is number => v !== null && v !== undefined && Number.isFinite(v)
+const roundsToZero = (v: number, digits: number) => Number(v.toFixed(digits)) === 0
+
+/** 248312.4 -> "248,312.40"; negatives use a true minus sign; null -> em dash. */
+export function num(value: number | null | undefined, digits = 2): string {
+  if (!isNumber(value)) return '—'
+  const text = plainFormat(digits).format(Math.abs(value))
+  return value < 0 && !roundsToZero(value, digits) ? `${MINUS}${text}` : text
+}
+
+/** Always signed: "+1,018.42", "−430.00". Zero has no sign. */
+export function signed(value: number | null | undefined, digits = 2): string {
+  if (!isNumber(value)) return '—'
+  return value > 0 && !roundsToZero(value, digits) ? `+${num(value, digits)}` : num(value, digits)
+}
+
+/** Signed percent with a true minus: "+0.41%", "−2.36%". */
+export function signedPct(value: number | null | undefined, digits = 2): string {
+  return isNumber(value) ? `${signed(value, digits)}%` : '—'
+}
+
+/** Unsigned percent: "19.1%". */
+export function share(value: number | null | undefined, digits = 1): string {
+  return isNumber(value) ? `${num(value, digits)}%` : '—'
+}
+
+/** Short magnitudes for caps and volumes: 205.6B, 4.8M, 912K. */
+export function abbrev(value: number | null | undefined, digits = 1): string {
+  if (!isNumber(value)) return '—'
+  const abs = Math.abs(value)
+  const [div, unit] = abs >= 1e12 ? [1e12, 'T'] : abs >= 1e9 ? [1e9, 'B'] : abs >= 1e6 ? [1e6, 'M'] : abs >= 1e3 ? [1e3, 'K'] : [1, '']
+  // 0.2M rather than 200.0K, as the design writes volumes; whole units drop the decimal.
+  if (unit === 'K' && abs >= 1e5) return `${num(value / 1e6, digits)}M`
+  return `${num(value / div, unit ? digits : 0)}${unit}`
+}
+
+const fractional = new Intl.NumberFormat('en-CA', { maximumFractionDigits: 3 })
+
+/** Quantities: whole shares without decimals, fractional ones with up to 3. */
+export function qty(value: number | null | undefined): string {
+  if (!isNumber(value)) return '—'
+  return Number.isInteger(value) ? num(value, 0) : fractional.format(value)
+}
+
+/** CSS class for a signed figure. */
+export const dir = (value: number | null | undefined): '' | 'up' | 'dn' =>
+  !value ? '' : value > 0 ? 'up' : 'dn'

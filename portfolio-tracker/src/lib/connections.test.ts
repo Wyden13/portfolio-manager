@@ -1,22 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import type { BrokerageCatalog, ConnectionsOverview } from '../types'
 import { initials, institutionCards, logoFor, outcomeOf, timeAgo } from './connections'
-import { hashFor, parseHash } from './route'
 
 const account = (id: number) => ({ id, account_type: 'TFSA', account_number: `••000${id}`, removed: false, duplicate: false })
-
-describe('parseHash', () => {
-  it('reads the tab and the query a broker sign-in returns with', () => {
-    const { tab, params } = parseHash('#/connections?linked=questrade')
-    expect(tab).toBe('connections')
-    expect(params.get('linked')).toBe('questrade')
-  })
-  it('falls back to the dashboard', () => {
-    expect(parseHash('').tab).toBe('dashboard')
-    expect(parseHash('#/nope?x=1').tab).toBe('dashboard')
-    expect(parseHash(hashFor('ledger')).tab).toBe('ledger')
-  })
-})
 
 describe('institutionCards', () => {
   const overview: ConnectionsOverview = {

@@ -1,25 +1,21 @@
-import { useEffect, useMemo, useState } from 'react'
+import { motion } from 'motion/react'
+import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { fetchLedger, ledgerCsvUrl, type LedgerQuery } from '../api/client'
 import { accountName, useAccounts } from '../hooks/useAccounts'
 import { useAsync } from '../hooks/useAsync'
-import { money } from '../lib/format'
+import { tradeDay } from '../lib/dates'
+import { dir, num, qty, signed } from '../lib/format'
+import { KIND_LABEL, KINDS } from '../lib/kinds'
+import { rowIn } from '../lib/motion'
+import { displaySymbol } from '../lib/portfolio'
+import { holdingHash } from '../lib/route'
 import type { LedgerEntry, LedgerPage, TransactionKind } from '../types'
-import { Empty, Panel } from './Panel'
+import { Icon } from './Icon'
 
 const PAGE_SIZE = 50
 const SYMBOL_DEBOUNCE_MS = 300
-const KINDS: readonly TransactionKind[] = ['BUY', 'SELL', 'DIVIDEND', 'DEPOSIT', 'WITHDRAWAL', 'FEE', 'OTHER']
-const KIND_LABEL: Record<TransactionKind, string> = {
-  BUY: 'Buy', SELL: 'Sell', DIVIDEND: 'Dividend', DEPOSIT: 'Deposit', WITHDRAWAL: 'Withdrawal', FEE: 'Fee', OTHER: 'Other',
-}
-
 const EMPTY_FILTERS: LedgerQuery = { kinds: [] }
-
-/** Trade dates are stored as naive UTC; show the calendar day without shifting it into local time. */
-const dateFormat = new Intl.DateTimeFormat(undefined, { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' })
-const tradeDay = (iso: string) => dateFormat.format(new Date(`${iso}Z`))
-
-const quantityFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 4 })
+const GRID = { '--cols': '104px minmax(150px, 1fr) 96px 80px 72px 88px 72px 112px 56px minmax(200px, 1.4fr)', minWidth: 1180 } as CSSProperties
 
 function useDebounced<T>(value: T, ms: number): T {
   const [debounced, setDebounced] = useState(value)
@@ -30,28 +26,25 @@ function useDebounced<T>(value: T, ms: number): T {
   return debounced
 }
 
-function Row({ t }: { t: LedgerEntry }) {
+function Row({ t, i }: { t: LedgerEntry; i: number }) {
   const traded = t.kind === 'BUY' || t.kind === 'SELL'
   return (
-    <tr>
-      <td className="c-date nowrap">{tradeDay(t.trade_date)}</td>
-      <td className="c-account">
-        <span className="account-name">{t.institution}</span>
-        <span className="muted small nowrap">{t.account_type} {t.account_number}</span>
-      </td>
-      <td className="c-type"><span className={`pill kind-${t.kind.toLowerCase()}`}>{KIND_LABEL[t.kind]}</span></td>
-      <td className="c-symbol nowrap">{t.symbol ?? '—'}</td>
-      <td className="c-qty num">{t.quantity ? quantityFormat.format(t.quantity) : '—'}</td>
-      <td className="c-price num">{traded ? money(t.price, t.currency) : '—'}</td>
-      <td className="c-fee num">{t.fee ? money(t.fee, t.currency) : '—'}</td>
-      <td className={`c-amount num strong ${t.net_amount > 0 ? 'gain' : t.net_amount < 0 ? 'loss' : ''}`}>
-        {t.net_amount ? money(t.net_amount, t.currency) : '—'}
-      </td>
-      <td className="c-desc description" title={t.description}>{t.description}</td>
-    </tr>
+    <motion.div className="tr hv" {...rowIn(i)}>
+      <span>{tradeDay(t.trade_date)}</span>
+      <span className="L">{t.account_type} <span className="m">{t.account_number} · {t.institution}</span></span>
+      <span className="L">{KIND_LABEL[t.kind]}</span>
+      <span className="L">{t.symbol ? <a className="sym" href={holdingHash(t.symbol)}>{displaySymbol(t.symbol)}</a> : <span className="m">—</span>}</span>
+      <span>{t.quantity ? qty(t.quantity) : '—'}</span>
+      <span>{traded ? num(t.price) : '—'}</span>
+      <span>{t.fee ? num(t.fee) : '—'}</span>
+      <span className={dir(t.net_amount)} style={{ fontWeight: 600 }}>{t.net_amount ? signed(t.net_amount) : '—'}</span>
+      <span className="m">{t.currency}</span>
+      <span className="L m" title={t.description}>{t.description}</span>
+    </motion.div>
   )
 }
 
+/** Every stored transaction, filterable and paged, with a CSV of the current filter. */
 export function Ledger() {
   const { list: accounts } = useAccounts()
   const [filters, setFilters] = useState<LedgerQuery>(EMPTY_FILTERS)
@@ -82,116 +75,86 @@ export function Ledger() {
   const update = (patch: Partial<LedgerQuery>) => setFilters((f) => ({ ...f, ...patch }))
   const toggleKind = (kind: TransactionKind) =>
     update({ kinds: filters.kinds.includes(kind) ? filters.kinds.filter((k) => k !== kind) : [...filters.kinds, kind] })
-  const clear = () => {
-    setFilters(EMPTY_FILTERS)
-    setSymbolInput('')
-  }
+  const clear = () => { setFilters(EMPTY_FILTERS); setSymbolInput('') }
 
   const first = data && data.total ? data.offset + 1 : 0
   const last = data ? data.offset + data.items.length : 0
 
   return (
-    <Panel
-      title="Ledger"
-      controls={
-        <a className="btn" href={ledgerCsvUrl(query)} download>
-          Export CSV
-        </a>
-      }
-    >
+    <section className="p">
+      <div className="ph">
+        <h2>Transactions {data && <span className="m" style={{ fontWeight: 400 }}>{data.total.toLocaleString()} total</span>}</h2>
+        <a className="btn o" href={ledgerCsvUrl(query)} download style={{ color: 'var(--ink)' }}><Icon name="download" />Export CSV</a>
+      </div>
       <form className="filters" onSubmit={(e) => e.preventDefault()} aria-label="Filter transactions">
-        <label className="field">
-          <span>Institution</span>
-          <select
-            value={filters.institution ?? ''}
-            onChange={(e) => update({ institution: e.target.value || undefined, accountId: undefined })}
-          >
+        <label className="sel">Institution
+          <select value={filters.institution ?? ''} onChange={(e) => update({ institution: e.target.value || undefined, accountId: undefined })}>
             <option value="">All institutions</option>
             {institutions.map((i) => <option key={i} value={i}>{i}</option>)}
           </select>
         </label>
-        <label className="field">
-          <span>Account</span>
-          <select
-            value={filters.accountId ?? ''}
-            onChange={(e) => update({ accountId: e.target.value ? Number(e.target.value) : undefined })}
-          >
+        <label className="sel">Account
+          <select value={filters.accountId ?? ''} onChange={(e) => update({ accountId: e.target.value ? Number(e.target.value) : undefined })}>
             <option value="">All accounts</option>
             {accountChoices.map((a) => <option key={a.id} value={a.id}>{accountName(a)}</option>)}
           </select>
         </label>
-        <label className="field">
-          <span>Symbol</span>
+        <label className="sel">Symbol
           <input type="search" placeholder="e.g. RY.TO" value={symbolInput} onChange={(e) => setSymbolInput(e.target.value)} />
         </label>
-        <label className="field">
-          <span>From</span>
+        <label className="sel">From
           <input type="date" value={filters.start ?? ''} max={filters.end} onChange={(e) => update({ start: e.target.value || undefined })} />
         </label>
-        <label className="field">
-          <span>To</span>
+        <label className="sel">To
           <input type="date" value={filters.end ?? ''} min={filters.start} onChange={(e) => update({ end: e.target.value || undefined })} />
         </label>
         <div className="chips" role="group" aria-label="Transaction type">
           {KINDS.map((k) => (
-            <button key={k} type="button" className="chip" aria-pressed={filters.kinds.includes(k)} onClick={() => toggleKind(k)}>
-              {KIND_LABEL[k]}
-            </button>
+            <button key={k} type="button" aria-pressed={filters.kinds.includes(k)} onClick={() => toggleKind(k)}>{KIND_LABEL[k]}</button>
           ))}
-          {filtered && <button type="button" className="link-btn" onClick={clear}>Clear filters</button>}
         </div>
+        {filtered && <button type="button" className="btn o" style={{ marginLeft: 'auto' }} onClick={clear}>Reset</button>}
       </form>
 
       {state.status === 'error' && !data ? (
-        <Empty tone="error">
+        <div className="state error" role="alert">
           Couldn’t load transactions.
-          <button type="button" className="btn" onClick={() => setAttempt((n) => n + 1)}>Try again</button>
-        </Empty>
+          <button type="button" className="btn o" onClick={() => setAttempt((n) => n + 1)}>Try again</button>
+        </div>
       ) : !data ? (
-        <Empty height={320}>Loading transactions…</Empty>
+        <div className="state" role="status" style={{ minHeight: 320 }}>Loading transactions…</div>
       ) : data.total === 0 ? (
-        <Empty height={320}>
-          {filtered ? 'No transactions match these filters.' : 'No transactions yet. Sync a brokerage to fill the ledger.'}
-          {filtered && <button type="button" className="btn" onClick={clear}>Clear filters</button>}
-        </Empty>
+        <div className="state" style={{ minHeight: 320 }}>
+          {filtered ? 'No transactions match these filters.' : 'No transactions yet. Sync a brokerage to fill the history.'}
+          {filtered && <button type="button" className="btn o" onClick={clear}>Reset</button>}
+        </div>
       ) : (
         <>
           {state.status === 'error' && (
             <p className="banner warn" role="alert">
-              Couldn’t load this page. <button type="button" className="link-btn" onClick={() => setAttempt((n) => n + 1)}>Try again</button>
+              Couldn’t load this page.<button type="button" className="link-btn" onClick={() => setAttempt((n) => n + 1)}>Try again</button>
             </p>
           )}
-          <div className="table-wrap" aria-busy={state.status === 'loading'}>
-            <table className={`ledger ${state.status === 'loading' ? 'stale' : ''}`}>
-              <thead>
-                <tr>
-                  <th scope="col">Date</th>
-                  <th scope="col">Account</th>
-                  <th scope="col">Type</th>
-                  <th scope="col">Symbol</th>
-                  <th scope="col" className="num">Quantity</th>
-                  <th scope="col" className="num">Price</th>
-                  <th scope="col" className="num">Fee</th>
-                  <th scope="col" className="num">Amount</th>
-                  <th scope="col">Description</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.items.map((t) => <Row key={t.id} t={t} />)}
-              </tbody>
-            </table>
+          <div className="sx" aria-busy={state.status === 'loading'}>
+            <div className={`tb ${state.status === 'loading' ? 'stale' : ''}`} style={GRID}>
+              <div className="tr th">
+                <span>Date</span><span className="L">Account</span><span className="L">Type</span><span className="L">Symbol</span>
+                <span>Qty</span><span>Price</span><span>Fee</span><span>Amount</span><span>Ccy</span><span className="L">Description</span>
+              </div>
+              {data.items.map((t, i) => <Row key={`${page}:${t.id}`} t={t} i={i} />)}
+            </div>
           </div>
-          <nav className="pager" aria-label="Ledger pages">
-            <span className="muted small">
+          <nav className="pager" aria-label="Transaction pages">
+            <span className="m">
               {first.toLocaleString()}–{last.toLocaleString()} of {data.total.toLocaleString()} {data.total === 1 ? 'transaction' : 'transactions'}
             </span>
-            <div className="pager-buttons">
-              <button type="button" className="btn" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>Previous</button>
-              <button type="button" className="btn" disabled={last >= data.total} onClick={() => setPage((p) => p + 1)}>Next</button>
+            <div className="actions">
+              <button type="button" className="btn o" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>Previous</button>
+              <button type="button" className="btn o" disabled={last >= data.total} onClick={() => setPage((p) => p + 1)}>Next</button>
             </div>
           </nav>
         </>
       )}
-    </Panel>
+    </section>
   )
 }

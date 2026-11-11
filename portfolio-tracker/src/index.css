@@ -1,28 +1,53 @@
+/* Tokens from the InvestIQ design canvas (Brand board): ink, rules, one accent, gain and loss.
+   k1..k6 = allocation series; h0..h3 / n1..n3 = market map gain / loss scale. */
 :root {
-  --bg: #f4f6fa;
-  --surface: #ffffff;
-  --text: #1c2230;
-  --muted: #5d6678;
-  --border: #e3e6ec;
-  --accent: #2563eb;
-  --on-accent: #ffffff;
-  --gain: #13803f;
-  --loss: #c0392b;
-  --shadow: 0 1px 2px rgba(20, 28, 45, 0.06), 0 4px 12px rgba(20, 28, 45, 0.04);
+  --bg: #FFFFFF;
+  --sub: #F5F6F8;
+  --line: #E3E6EA;
+  --line2: #C9CED5;
+  --ink: #0E1116;
+  --ink2: #4B5361;
+  --ink3: #69717E;
+  --acc: #1A56DB;
+  --acc2: #1546B3;
+  --on: #FFFFFF;
+  --up: #0A7A3D;
+  --dn: #C62A22;
+  --k1: #1A56DB; --k2: #5C86E8; --k3: #A3BBF2; --k4: #4B5361; --k5: #9AA1AC; --k6: #D5D9DF;
+  --h3: #1D7A47; --h2: #86C4A0; --h1: #D2ECDC; --h0: #E9EBEE;
+  --n1: #F7D6D3; --n2: #EA9690; --n3: #BF352E;
+  --scrim: rgba(14, 17, 22, 0.4);
+  --pop-shadow: 0 8px 24px rgba(14, 17, 22, 0.12);
+
+  /* Motion: ease-out for entrances, ease-in-out for moves, exits 20% shorter than entrances. */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --dur-enter: 200ms;
+  --dur-exit: 160ms;
+  --dur-press: 120ms;
+
+  --font: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
   color-scheme: light;
 }
 
 :root[data-theme='dark'] {
-  --bg: #0e121b;
-  --surface: #161b27;
-  --text: #e6e9f0;
-  --muted: #9aa3b5;
-  --border: #2a3142;
-  --accent: #6ea0ff;
-  --on-accent: #0b1220;
-  --gain: #3ecf86;
-  --loss: #ff6b6b;
-  --shadow: none;
+  --bg: #0C0E12;
+  --sub: #14171D;
+  --line: #242932;
+  --line2: #383E49;
+  --ink: #E7E9EC;
+  --ink2: #A9B0BA;
+  --ink3: #8A929E;
+  --acc: #5B8DEF;
+  --acc2: #7AA3F2;
+  --on: #0C0E12;
+  --up: #34B36E;
+  --dn: #EF5A52;
+  --k1: #5B8DEF; --k2: #3D63B8; --k3: #283F70; --k4: #A9B0BA; --k5: #6A727E; --k6: #383E49;
+  --h3: #2E9E62; --h2: #1D5C3B; --h1: #15301F; --h0: #22262D;
+  --n1: #3A1C1A; --n2: #7A2A24; --n3: #C93A31;
+  --scrim: rgba(0, 0, 0, 0.55);
+  --pop-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
   color-scheme: dark;
 }
 
@@ -31,12 +56,15 @@
 body {
   margin: 0;
   background: var(--bg);
-  color: var(--text);
-  font: 15px/1.5 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  color: var(--ink);
+  font: 400 13px/1.45 var(--font);
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
 }
 
 h1, h2, h3, p { margin: 0; }
-button, select { font: inherit; color: inherit; }
+button, select, input { font: inherit; color: inherit; }
+a { color: inherit; text-decoration: none; }
 
 .sr-only {
   position: absolute; width: 1px; height: 1px; overflow: hidden;

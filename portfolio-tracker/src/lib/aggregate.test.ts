@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { PortfolioSnapshot, Position } from '../types'
 import { allocation, costNote, currenciesOf, gainLossRanking, holdingLabels, pricedIn, valuedIn } from './aggregate'
-import { tileColor } from './theme'
 
 function position(account_id: number, symbol: string, currency: string, cost: number, value: number): Position {
   return {
@@ -67,13 +66,6 @@ describe('aggregate', () => {
   it('ranks gain/loss ascending', () => {
     const ranked = gainLossRanking(pricedIn(snap, 'USD')).map((p) => p.unrealized_pnl)
     expect(ranked).toEqual([...ranked].sort((a, b) => a - b))
-  })
-
-  it('colours losses red-ish and gains green-ish', () => {
-    const [lr, , lb] = tileColor(-10).match(/\d+/g)!.map(Number)
-    const [gr, gg] = tileColor(10).match(/\d+/g)!.map(Number)
-    expect(lr).toBeGreaterThan(lb)
-    expect(gg).toBeGreaterThan(gr)
   })
 
   it('labels a symbol by account only when it is held in more than one', () => {

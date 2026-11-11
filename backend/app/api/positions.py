@@ -46,9 +46,10 @@ def _account(a: AccountSummary) -> dict:
     return {
         "account_id": a.account_id, "market_value": float(a.market_value), "cost_basis": float(a.cost_basis),
         "unrealized_pnl": float(a.unrealized_pnl), "unrealized_pct": _num(a.unrealized_pct),
-        "cash": [{"currency": c.currency, "amount": float(c.amount), "estimated": c.estimated} for c in a.cash],
+        "cash": [{"currency": c.currency, "amount": float(c.amount), "estimated": c.estimated,
+                  "opening": float(c.opening)} for c in a.cash],
         "cash_value": float(a.cash_value), "total": float(a.total), "holdings": a.holdings,
-        "complete": a.complete,
+        "complete": a.complete, "options_value": float(a.options_value),
     }
 
 
@@ -60,8 +61,8 @@ async def list_positions(
     fx: FxProvider = Depends(get_fx_provider),
 ):
     """Holdings reconciled against the broker snapshot, priced with live quotes (unrealized P&L)."""
-    holdings, cash = load_portfolio(db, user_id)
-    snapshot = await build_pnl(holdings, provider, fx, cash=cash)
+    holdings, cash, options = load_portfolio(db, user_id)
+    snapshot = await build_pnl(holdings, provider, fx, cash=cash, options=options)
     return {
         "as_of": snapshot.as_of.isoformat() + "Z",
         "positions": [
@@ -73,7 +74,8 @@ async def list_positions(
                 "unrealized_pct": _num(p.unrealized_pct), "status": p.status,
                 "first_buy_at": p.first_buy_at.isoformat() if p.first_buy_at else None,
                 "incomplete_history": p.incomplete_history, "source": p.source,
-                "asset_class": p.asset_class,
+                "asset_class": p.asset_class, "cost_currency": p.cost_currency,
+                "settled_cost_basis": _num(p.settled_cost_basis), "realized_pnl": _num(p.realized_pnl),
             }
             for p in snapshot.positions
         ],

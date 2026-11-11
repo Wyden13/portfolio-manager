@@ -95,8 +95,8 @@ async def pnl_events(
     while True:
         try:
             with session_factory() as db:
-                holdings, cash = load_portfolio(db, user_id)
-            yield encode_event(await build_pnl(holdings, provider, fx, cash=cash))
+                holdings, cash, options = load_portfolio(db, user_id)
+            yield encode_event(await build_pnl(holdings, provider, fx, cash=cash, options=options))
         except Exception:
             # Keep the stream alive through a flaky quote source or DB; clients ignore comments.
             yield ": pnl update failed\n\n"

@@ -212,7 +212,7 @@ async def test_build_pnl_rolls_cash_into_total_assets_and_tags_asset_classes(db)
     buy.net_amount = D(-1000)
     db.add_all([cash_tx(1, TransactionKind.DEPOSIT, 1500, 2), buy, pos(10, 100)])
     db.commit()
-    holdings, cash = load_portfolio(db, 1)
+    holdings, cash, _ = load_portfolio(db, 1)
     assert cash == [CashBalance(1, "CAD", D(500), False)]
 
     class Fake(QuoteProvider):

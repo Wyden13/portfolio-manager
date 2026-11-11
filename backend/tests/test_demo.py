@@ -32,7 +32,7 @@ async def test_demo_seed_flows_through_real_sync_and_reconciles(db_engine, monke
         assert db.scalar(select(func.count(Transaction.id))) == broker_rows
 
         holdings = load_holdings(db, 1)
-        _, cash = load_portfolio(db, 1)
+        _, cash, _ = load_portfolio(db, 1)
         numbers = {a.id: a.account_number for a in db.scalars(select(AccountRecord))}
     # Cash computed from the synced ledger matches each broker's own books.
     books = {b.account.number: b for b in [*brokers.questrade.books.values(), *brokers.snaptrade.books.values()]}

@@ -81,10 +81,10 @@ export function Ledger() {
   const last = data ? data.offset + data.items.length : 0
 
   return (
-    <section className="p">
-      <div className="ph">
+    <section className="stack">
+      <div className="sh" style={{ alignItems: 'center' }}>
         <h2>Transactions {data && <span className="m" style={{ fontWeight: 400 }}>{data.total.toLocaleString()} total</span>}</h2>
-        <a className="btn o" href={ledgerCsvUrl(query)} download style={{ color: 'var(--ink)' }}><Icon name="download" />Export CSV</a>
+        <a className="btn o s" href={ledgerCsvUrl(query)} download style={{ color: 'var(--ink)' }}><Icon name="download" />Export CSV</a>
       </div>
       <form className="filters" onSubmit={(e) => e.preventDefault()} aria-label="Filter transactions">
         <label className="sel">Institution
@@ -113,20 +113,20 @@ export function Ledger() {
             <button key={k} type="button" aria-pressed={filters.kinds.includes(k)} onClick={() => toggleKind(k)}>{KIND_LABEL[k]}</button>
           ))}
         </div>
-        {filtered && <button type="button" className="btn o" style={{ marginLeft: 'auto' }} onClick={clear}>Reset</button>}
+        {filtered && <button type="button" className="btn o s" style={{ marginLeft: 'auto' }} onClick={clear}>Reset</button>}
       </form>
 
       {state.status === 'error' && !data ? (
         <div className="state error" role="alert">
           Couldn’t load transactions.
-          <button type="button" className="btn o" onClick={() => setAttempt((n) => n + 1)}>Try again</button>
+          <button type="button" className="btn o s" onClick={() => setAttempt((n) => n + 1)}>Try again</button>
         </div>
       ) : !data ? (
         <div className="state" role="status" style={{ minHeight: 320 }}>Loading transactions…</div>
       ) : data.total === 0 ? (
         <div className="state" style={{ minHeight: 320 }}>
           {filtered ? 'No transactions match these filters.' : 'No transactions yet. Sync a brokerage to fill the history.'}
-          {filtered && <button type="button" className="btn o" onClick={clear}>Reset</button>}
+          {filtered && <button type="button" className="btn o s" onClick={clear}>Reset</button>}
         </div>
       ) : (
         <>
@@ -149,8 +149,8 @@ export function Ledger() {
               {first.toLocaleString()}–{last.toLocaleString()} of {data.total.toLocaleString()} {data.total === 1 ? 'transaction' : 'transactions'}
             </span>
             <div className="actions">
-              <button type="button" className="btn o" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>Previous</button>
-              <button type="button" className="btn o" disabled={last >= data.total} onClick={() => setPage((p) => p + 1)}>Next</button>
+              <button type="button" className="btn o s" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>Previous</button>
+              <button type="button" className="btn o s" disabled={last >= data.total} onClick={() => setPage((p) => p + 1)}>Next</button>
             </div>
           </nav>
         </>

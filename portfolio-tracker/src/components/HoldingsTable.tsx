@@ -121,13 +121,13 @@ export function HoldingsTable({ snapshot, profiles }: { snapshot: PortfolioSnaps
   const first = shown.page * (pageSize === 'all' ? 0 : pageSize)
 
   return (
-    <section className="p">
-      <div className="ph">
+    <section className="stack">
+      <div className="sh" style={{ alignItems: 'center' }}>
         <h2>All holdings <span className="m" style={{ fontWeight: 400 }}>{rows.length} of {all.length} · values in each listing’s currency</span></h2>
-        <div className="ph-r">
+        <div className="actions">
           <RangeGroup label="Rows per page" value={pageSize === 'all' ? 'All' : String(pageSize)} options={PAGE_SIZE_OPTIONS}
             onChange={(s) => { const size = s === 'All' ? 'all' : Number(s) as PageSize; setPageSize(size); storePageSize(size) }} />
-          <button type="button" className="btn o" ref={exportRef} onClick={exportCsv} disabled={rows.length === 0}><Icon name="download" />Export CSV</button>
+          <button type="button" className="btn o s" ref={exportRef} onClick={exportCsv} disabled={rows.length === 0}><Icon name="download" />Export CSV</button>
         </div>
       </div>
       <form className="filters" onSubmit={(e) => e.preventDefault()} aria-label="Filter holdings">
@@ -160,11 +160,11 @@ export function HoldingsTable({ snapshot, profiles }: { snapshot: PortfolioSnaps
             </select>
           </label>
         )}
-        {filtered && <button type="button" className="btn o" style={{ marginLeft: 'auto' }} onClick={clear}>Reset</button>}
+        {filtered && <button type="button" className="btn o s" style={{ marginLeft: 'auto' }} onClick={clear}>Reset</button>}
       </form>
 
       {rows.length === 0 ? (
-        <div className="state">No holdings match these filters. <button type="button" className="btn o" onClick={clear}>Reset</button></div>
+        <div className="state">No holdings match these filters. <button type="button" className="btn o s" onClick={clear}>Reset</button></div>
       ) : (
         <div className="sx">
           <div className="tb" style={GRID}>
@@ -230,8 +230,8 @@ export function HoldingsTable({ snapshot, profiles }: { snapshot: PortfolioSnaps
         <nav className="pager" aria-label="Holdings pages">
           <span className="m">{first + 1}–{first + shown.rows.length} of {rows.length}</span>
           <div className="actions">
-            <button type="button" className="btn o" disabled={shown.page === 0} onClick={() => setPage(shown.page - 1)}>Previous</button>
-            <button type="button" className="btn o" disabled={shown.page >= shown.pages - 1} onClick={() => setPage(shown.page + 1)}>Next</button>
+            <button type="button" className="btn o s" disabled={shown.page === 0} onClick={() => setPage(shown.page - 1)}>Previous</button>
+            <button type="button" className="btn o s" disabled={shown.page >= shown.pages - 1} onClick={() => setPage(shown.page + 1)}>Next</button>
           </div>
         </nav>
       )}

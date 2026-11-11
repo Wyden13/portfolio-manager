@@ -28,7 +28,7 @@ const W = 800
 const H = 220
 
 /**
- * The design's line-and-fill chart: 800 x 220 viewBox stretched to the box, value labels on the
+ * The design's line chart: 800 x 220 viewBox stretched to the box, value labels on the
  * right, time labels below. A new series reveals left to right through a mask while the old one
  * fades (both on screen at once). The crosshair follows the pointer with no easing.
  */
@@ -59,14 +59,13 @@ export function AreaChart({ points, height, tone, label, formatTime, formatTip =
             ))}
             {refY !== null && (
               <line x1="0" x2={W} y1={refY} y2={refY} stroke={reference!.kind === 'cost' ? 'var(--acc)' : 'var(--ink3)'}
-                strokeWidth="1" strokeDasharray={reference!.kind === 'cost' ? '4 3' : '3 3'} vectorEffect="non-scaling-stroke" />
+                strokeWidth="1" strokeDasharray={reference!.kind === 'cost' ? '4 4' : '2 4'} vectorEffect="non-scaling-stroke" />
             )}
           </svg>
           <AnimatePresence initial={true}>
             <motion.svg key={seriesKey} className="chart-layer" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none"
               role="img" aria-label={label} {...maskReveal}>
-              <path d={plot.area} fill={`var(--${tone})`} opacity="0.07" />
-              <path d={plot.line} fill="none" stroke={`var(--${tone})`} strokeWidth="1.5" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+              <path d={plot.line} fill="none" stroke={`var(--${tone})`} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
             </motion.svg>
           </AnimatePresence>
           {hp && (

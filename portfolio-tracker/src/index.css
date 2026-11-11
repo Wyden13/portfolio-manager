@@ -1,15 +1,16 @@
-/* Tokens from the InvestIQ design canvas (Brand board): ink, rules, one accent, gain and loss.
+/* Tokens from the InvestIQ design canvas (version 2): ink, rules, one accent, gain and loss.
    k1..k6 = allocation series; h0..h3 / n1..n3 = market map gain / loss scale. */
 :root {
   --bg: #FFFFFF;
-  --sub: #F5F6F8;
-  --line: #E3E6EA;
-  --line2: #C9CED5;
+  --sub: #F4F5F7;
+  --line: #E6E8EC;
+  --line2: #D3D7DD;
   --ink: #0E1116;
   --ink2: #4B5361;
   --ink3: #69717E;
   --acc: #1A56DB;
   --acc2: #1546B3;
+  --accs: #E9F0FD;
   --on: #FFFFFF;
   --up: #0A7A3D;
   --dn: #C62A22;
@@ -17,7 +18,7 @@
   --h3: #1D7A47; --h2: #86C4A0; --h1: #D2ECDC; --h0: #E9EBEE;
   --n1: #F7D6D3; --n2: #EA9690; --n3: #BF352E;
   --scrim: rgba(14, 17, 22, 0.4);
-  --pop-shadow: 0 8px 24px rgba(14, 17, 22, 0.12);
+  --pop-shadow: 0 12px 32px rgba(14, 17, 22, 0.12);
 
   /* Motion: ease-out for entrances, ease-in-out for moves, exits 20% shorter than entrances. */
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
@@ -32,14 +33,15 @@
 
 :root[data-theme='dark'] {
   --bg: #0C0E12;
-  --sub: #14171D;
+  --sub: #161920;
   --line: #242932;
-  --line2: #383E49;
+  --line2: #363C47;
   --ink: #E7E9EC;
   --ink2: #A9B0BA;
   --ink3: #8A929E;
   --acc: #5B8DEF;
   --acc2: #7AA3F2;
+  --accs: #17233D;
   --on: #0C0E12;
   --up: #34B36E;
   --dn: #EF5A52;
@@ -57,7 +59,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--ink);
-  font: 400 13px/1.45 var(--font);
+  font: 400 14px/1.5 var(--font);
   font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
 }

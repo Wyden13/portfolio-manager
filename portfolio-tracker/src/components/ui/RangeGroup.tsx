@@ -13,7 +13,7 @@ interface Props<T extends string> {
 }
 
 /**
- * Joined toggle buttons (the design's `.rg`). The dark fill is one shared layout element that slides
+ * Range pills (the design's `.rng`). The soft accent fill is one shared layout element that slides
  * to the picked button (ease-in-out) and stretches 12% wide while it travels.
  */
 export function RangeGroup<T extends string>({ value, options, onChange, label, unavailable, size = 'md' }: Props<T>) {
@@ -22,15 +22,15 @@ export function RangeGroup<T extends string>({ value, options, onChange, label, 
   const [moved, setMoved] = useState(false)
   return (
     <LayoutGroup id={id}>
-      <div className={`rg${size === 'lg' ? ' lg' : ''}`} role="group" aria-label={label}>
+      <div className={`rng${size === 'lg' ? ' lg' : ''}`} role="group" aria-label={label}>
         {options.map((o) => {
           const why = unavailable?.(o) ?? null
           return (
             <button key={o} type="button" aria-pressed={o === value} disabled={why !== null} title={why ?? undefined}
               onClick={() => { setMoved(true); onChange(o) }}>
               {o === value && (
-                <motion.span layoutId="fill" className="rg-fill" transition={move}>
-                  <motion.span className="rg-fill" style={{ inset: 0 }}
+                <motion.span layoutId="fill" className="rng-fill" transition={move}>
+                  <motion.span className="rng-fill" style={{ inset: 0 }}
                     initial={{ scaleX: 1 }}
                     animate={moved ? { scaleX: [1, 1.12, 1] } : undefined}
                     transition={{ duration: 0.32, ease: EASE_IN_OUT, times: [0, 0.5, 1] }} />

@@ -1,12 +1,9 @@
 import { motion } from 'motion/react'
-import { useCallback, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { useMemo, useState } from 'react'
 import { fetchHistory } from '../api/client'
 import { AreaChart, type Point } from '../components/AreaChart'
-import { Icon } from '../components/Icon'
 import { NewsRows } from '../components/SamplePanels'
 import { TickerLogo } from '../components/TickerLogo'
-import { IconSwap } from '../components/ui/IconSwap'
-import { Popover } from '../components/ui/Popover'
 import { RangeGroup } from '../components/ui/RangeGroup'
 import { SampleTag } from '../components/ui/SampleTag'
 import { LISTINGS } from '../demo/market'
@@ -33,24 +30,6 @@ const exchangeOf = (symbol: string) =>
   /\.TO$/i.test(symbol) ? 'TSX' : /\.VN?$/i.test(symbol) ? 'TSXV' : /\.CN$/i.test(symbol) ? 'CSE' : /\.NE$/i.test(symbol) ? 'Cboe Canada'
     : LISTINGS.get(symbol)?.exchange ?? null
 
-const WATCH_KEY = 'investiq.watchlist'
-function readWatchlist(): string[] {
-  try { return JSON.parse(localStorage.getItem(WATCH_KEY) ?? '[]') as string[] } catch { return [] }
-}
-
-/** Saved in this browser only: there is no watchlist on the server yet. */
-function useWatchlist(symbol: string): [boolean, () => void] {
-  const [list, setList] = useState(readWatchlist)
-  const toggle = useCallback(() => {
-    setList((l) => {
-      const next = l.includes(symbol) ? l.filter((s) => s !== symbol) : [...l, symbol]
-      try { localStorage.setItem(WATCH_KEY, JSON.stringify(next)) } catch { /* not remembered */ }
-      return next
-    })
-  }, [symbol])
-  return [list.includes(symbol), toggle]
-}
-
 function slice(range: Range, candles: Candle[]): Candle[] {
   if (range === '5D') return candles.slice(-5)
   if (range === 'YTD') {
@@ -60,27 +39,9 @@ function slice(range: Range, candles: Candle[]): Candle[] {
   return candles
 }
 
-function PriceAlert() {
-  const wrap = useRef<HTMLDivElement>(null)
-  const [open, setOpen] = useState(false)
-  const close = useCallback(() => setOpen(false), [])
-  return (
-    <div className="pop-wrap" ref={wrap}>
-      <button type="button" className="btn o" aria-expanded={open} onClick={() => setOpen((o) => !o)}><Icon name="bell" />Price alert</button>
-      <Popover open={open} onClose={close} wrapRef={wrap} align="right" label="Price alert">
-        <div style={{ padding: 12, width: 260, display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <strong>Price alerts aren’t available yet</strong>
-          <span className="m">InvestIQ can’t send notifications yet. This button is a placeholder from the design.</span>
-        </div>
-      </Popover>
-    </div>
-  )
-}
-
 export function Holding({ symbol, snapshot, profiles }: { symbol: string; snapshot: PortfolioSnapshot | null; profiles: Profiles }) {
   const { get } = useAccounts()
   const [range, setRange] = useState<Range>('1Y')
-  const [watching, toggleWatch] = useWatchlist(symbol)
   const [apiRange, interval] = range === '1D' ? FETCH['1M'] : FETCH[range]
   const chart = useAsync(`hist:${symbol}:${apiRange}:${interval}`, (s) => fetchHistory(symbol, apiRange, interval, s))
   const year1 = useAsync(`hist:${symbol}:1Y:1d`, (s) => fetchHistory(symbol, '1Y', '1d', s))
@@ -116,128 +77,124 @@ export function Holding({ symbol, snapshot, profiles }: { symbol: string; snapsh
     ['Volume', num(row?.volume ?? lastBar?.volume ?? null, 0)],
     ['Avg. volume, 3M', num(avgVol, 0)],
     ['Market cap', abbrev(profile?.market_cap ?? listing?.cap)],
-    ['Beta, 5Y monthly', '—'],
     ['P/E, TTM', num(profile?.pe ?? listing?.pe, 1)],
-    ['EPS, TTM', '—'],
   ]
   const stories = COMPANY_NEWS.filter((s) => s.symbol === symbol)
   const sector = profile?.sector ?? listing?.sector
 
   return (
-    <>
-      <nav className="crumb m" aria-label="Breadcrumb">
-        <a href={hashFor('markets')}>Markets</a><span>/</span>
-        {sector && <><a href={hashFor('markets')}>{sector}</a><span>/</span></>}
-        <span style={{ color: 'var(--ink)' }}>{displaySymbol(symbol)}</span>
-      </nav>
-
-      <div className="page-head">
-        <div className="page-title" style={{ gap: 6 }}>
+    <div className="layout">
+      <div className="main">
+        <section className="stack">
+          <nav className="crumb m" aria-label="Breadcrumb">
+            <a href={hashFor('markets')}>Markets</a><span>/</span>
+            {sector && <><a href={hashFor('markets')}>{sector}</a><span>/</span></>}
+            <span>{displaySymbol(symbol)}</span>
+          </nav>
           <div className="page-title">
-            <h1 style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <h1 className="h1" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <TickerLogo symbol={symbol} website={profile?.website} />
-              <span>{name} (<motion.span layoutId={`sym-${symbol}`} style={{ display: 'inline-block' }}>{displaySymbol(symbol)}</motion.span>)</span>
+              <span>{name}</span>
             </h1>
-            <span className="m">{[exchangeOf(symbol), currency, sector, profile?.industry].filter(Boolean).join(' · ')}</span>
+            <span className="m">
+              {/* The ticker carries over from the row that was clicked. */}
+              <motion.span layoutId={`sym-${symbol}`} style={{ display: 'inline-block' }}>{displaySymbol(symbol)}</motion.span>
+              {[exchangeOf(symbol), currency, sector, profile?.industry].filter(Boolean).map((x) => ` · ${x}`).join('')}
+            </span>
           </div>
-          <div className="quote">
-            <span className="quote-px">{num(price)}</span>
-            <span className={`quote-chg ${dir(change)}`}>{signed(change)} ({signedPct(pct)})</span>
-            <span className="m" style={{ fontSize: 12 }}>{row && snapshot ? `At ${clock(snapshot.as_of)} · live` : lastBar ? `Last close ${longDay(lastBar.time)}` : ''}</span>
+          <div className="page-title" style={{ gap: 2 }}>
+            <span className="big">{price === null ? '—' : `$${num(price)}`}</span>
+            <span>
+              <span className={`b ${dir(range === '1D' ? change : rangeChg)}`}>
+                {range === '1D'
+                  ? `${signed(change)} (${signedPct(pct)})`
+                  : rangeChg === null ? '' : `${signed(rangeChg)} (${signedPct(first ? (rangeChg / first) * 100 : null)})`}
+              </span>{' '}
+              <span className="m">{LABEL[range]}</span>
+              <span className="m small" style={{ marginLeft: 10 }}>{row && snapshot ? `At ${clock(snapshot.as_of)} · live` : lastBar ? `Last close ${longDay(lastBar.time)}` : ''}</span>
+            </span>
           </div>
-        </div>
-        <div className="actions">
-          <PriceAlert />
-          <button type="button" className="btn o" aria-pressed={watching} onClick={toggleWatch} title="Saved in this browser">
-            <IconSwap id={watching ? 'on' : 'off'}><Icon name={watching ? 'starFilled' : 'star'} /></IconSwap>
-            {watching ? 'On watchlist' : 'Add to watchlist'}
-          </button>
-        </div>
-      </div>
-
-      <div className="grid">
-        <section className="p c8">
-          <div className="ph">
-            <h2>Price</h2>
+          {points.length >= 2 ? (
+            <AreaChart points={points} height={280} tone={rangeChg !== null && rangeChg < 0 ? 'dn' : 'up'} label={`${displaySymbol(symbol)} price over the selected range`}
+              formatTime={TICK[range]} reference={costInRange !== null ? { value: costInRange, kind: 'cost' } : undefined}
+              seriesKey={`${symbol}:${range}`} />
+          ) : (
+            <div className="state" style={{ minHeight: 300 }} role={chart.status === 'error' ? 'alert' : 'status'}>
+              {chart.status === 'error' ? `No price history for ${displaySymbol(symbol)}.` : 'Loading prices…'}
+            </div>
+          )}
+          <div className="chart-foot">
             <RangeGroup label="Chart range" value={range} options={RANGES} onChange={setRange}
               unavailable={(r) => (r === '1D' ? 'Intraday prices aren’t available yet' : null)} />
-          </div>
-          <div className="chart-body">
-            <div className="chart-meta">
-              <span><span className="m">{LABEL[range]}</span>{' '}
-                <span className={dir(rangeChg)} style={{ fontWeight: 600 }}>
-                  {rangeChg === null ? '' : `${signed(rangeChg)} (${signedPct(first ? (rangeChg / first) * 100 : null)})`}
-                </span>
-              </span>
-              {costInRange !== null && <span className="m"><span className="cost-key" />Your avg cost {num(costInRange)}</span>}
-            </div>
-            {points.length >= 2 ? (
-              <AreaChart points={points} height={272} tone={rangeChg !== null && rangeChg < 0 ? 'dn' : 'up'} label={`${displaySymbol(symbol)} price over the selected range`}
-                formatTime={TICK[range]} reference={costInRange !== null ? { value: costInRange, kind: 'cost' } : undefined}
-                volume={candles.map((c) => c.volume)} seriesKey={`${symbol}:${range}`} />
-            ) : (
-              <div className="state" style={{ minHeight: 340 }} role={chart.status === 'error' ? 'alert' : 'status'}>
-                {chart.status === 'error' ? `No price history for ${displaySymbol(symbol)}.` : 'Loading prices…'}
-              </div>
+            {costInRange !== null && (
+              <span className="m small"><span className="cost-key" />Your average cost <span className="b" style={{ color: 'var(--ink)' }}>{num(costInRange)}</span></span>
             )}
           </div>
         </section>
 
-        <section className="p c4">
-          <div className="ph"><h2>Your position</h2><a href={hashFor('accounts')}>Accounts</a></div>
-          {row ? (
-            <>
-              <div className="tb" style={{ '--cols': 'minmax(0, 1fr) auto' } as CSSProperties}>
-                {([
-                  ['Shares', qty(row.quantity), ''],
-                  ['Average cost', num(row.averageCost), ''],
-                  ['Market value', num(row.marketValue), ''],
-                  ['Book cost', num(row.costBasis), ''],
-                  ['Unrealized P/L', `${signed(row.pnl)} (${signedPct(row.pnlPct, 1)})`, dir(row.pnl)],
-                  ['Day P/L', signed(dayPnl), dir(dayPnl)],
-                  ['Portfolio weight', share(row.weight), ''],
-                ] as const).map(([k, v, cls], i) => (
-                  <motion.div key={k} className="tr" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ ...enter, delay: staggerDelay(i) }}>
-                    <span className="m">{k}</span><span className={cls}>{v}</span>
-                  </motion.div>
-                ))}
-              </div>
-              <div className="ph top"><h2>By account</h2></div>
-              <div className="tb" style={{ '--cols': 'minmax(0, 1fr) 64px 80px 96px' } as CSSProperties}>
-                <div className="tr th"><span>Account</span><span>Qty</span><span>Avg cost</span><span>Value</span></div>
-                {row.children.map((c, i) => {
-                  const a = get(c.accountIds[0])
-                  return (
-                    <motion.div key={c.key} className="tr" {...rowIn(i)}>
-                      <span>{a ? `${a.account_type} · ${a.institution}` : `Account ${c.accountIds[0]}`}</span>
-                      <span>{qty(c.quantity)}</span><span>{num(c.averageCost)}</span><span>{num(c.marketValue)}</span>
-                    </motion.div>
-                  )
-                })}
-              </div>
-            </>
-          ) : (
-            <div className="state">You don’t hold {displaySymbol(symbol)} in any linked account.</div>
-          )}
-        </section>
-
-        <section className="p c8">
-          <div className="ph"><h2>News <SampleTag what="News" /></h2><a href={hashFor('news')}>More news</a></div>
-          {stories.length ? <NewsRows stories={stories} snapshot={snapshot} showSymbol={false} />
-            : <div className="state">No sample stories for {displaySymbol(symbol)}.</div>}
-        </section>
-
-        <section className="p c4">
-          <div className="ph"><h2>Key statistics</h2>{!profile && listing && <SampleTag what="Market cap and P/E" />}</div>
-          <div className="tb" style={{ '--cols': 'minmax(0, 1fr) auto' } as CSSProperties}>
+        <section>
+          <div className="sh" style={{ marginBottom: 16 }}><h2>Key statistics {!profile && listing && <SampleTag what="Market cap and P/E" />}</h2></div>
+          <div className="stats4">
             {stats.map(([k, v], i) => (
-              <motion.div key={k} className="tr" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ ...enter, delay: staggerDelay(i) }}>
-                <span className="m">{k}</span><span title={v === '—' ? 'Not available from the current data source' : undefined}>{v}</span>
+              <motion.div key={k} className="two" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ ...enter, delay: staggerDelay(i) }}>
+                <span className="lab">{k}</span><span className="b" title={v === '—' ? 'Not available from the current data source' : undefined}>{v}</span>
               </motion.div>
             ))}
           </div>
         </section>
+
+        <section>
+          <div className="sh"><h2>News <SampleTag what="News" /></h2><a href={hashFor('news')} className="lk">More news</a></div>
+          {stories.length ? <NewsRows stories={stories} snapshot={snapshot} showSymbol={false} />
+            : <div className="state">No sample stories for {displaySymbol(symbol)}.</div>}
+        </section>
       </div>
-    </>
+
+      <aside className="rail">
+        <section className="card">
+          <div className="ch"><h3>Your position</h3><a href={hashFor('accounts')}>Accounts</a></div>
+          {row ? (
+            <>
+              <div className="card-pad page-title" style={{ gap: 2 }}>
+                <span className="lab">Market value</span>
+                <span style={{ fontSize: 26, fontWeight: 700, letterSpacing: '-0.01em' }}>{num(row.marketValue)} <span className="m" style={{ fontSize: 14, fontWeight: 500 }}>{row.currency}</span></span>
+                <span className={`b small ${dir(row.pnl)}`}>{signed(row.pnl)} ({signedPct(row.pnlPct, 1)}) all time</span>
+              </div>
+              {([
+                ['Shares', qty(row.quantity), ''],
+                ['Average cost', num(row.averageCost), ''],
+                ['Book cost', num(row.costBasis), ''],
+                ['Today', signed(dayPnl), dir(dayPnl)],
+                ['Portfolio weight', share(row.weight), ''],
+              ] as const).map(([k, v, cls], i) => (
+                <motion.div key={k} className="li" style={{ minHeight: 44 }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ ...enter, delay: staggerDelay(i) }}>
+                  <span className="m2">{k}</span><span className={`b ${cls}`}>{v}</span>
+                </motion.div>
+              ))}
+            </>
+          ) : (
+            <div className="state" style={{ minHeight: 120 }}>You don’t hold {displaySymbol(symbol)} in any linked account.</div>
+          )}
+        </section>
+
+        {row && (
+          <section className="card">
+            <div className="ch"><h3>By account</h3></div>
+            {row.children.map((c, i) => {
+              const a = get(c.accountIds[0])
+              return (
+                <motion.div key={c.key} className="li" {...rowIn(i)}>
+                  <span className="two">
+                    <span className="b">{a ? a.account_type : `Account ${c.accountIds[0]}`}</span>
+                    <span className="m small">{qty(c.quantity)} shares · avg {num(c.averageCost)}{a ? ` · ${a.institution}` : ''}</span>
+                  </span>
+                  <span className="b">{num(c.marketValue)}</span>
+                </motion.div>
+              )
+            })}
+          </section>
+        )}
+      </aside>
+    </div>
   )
 }

@@ -32,12 +32,12 @@ export function Icon({ name, size = 16, className = '' }: { name: IconName; size
 }
 
 /** The InvestIQ mark: an accent square with a bar and a rising line, in the theme's colours. */
-export function BrandMark({ size = 22 }: { size?: number }) {
+export function BrandMark({ size = 28 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden="true" className="icon">
-      <rect width="64" height="64" fill="var(--acc)" />
-      <rect x="13" y="16" width="8" height="32" fill="var(--on)" />
-      <path d="M28 46 L36 34 L42 40 L51 23" fill="none" stroke="var(--on)" strokeWidth="7" strokeLinecap="square" />
+      <rect width="64" height="64" rx="14" fill="var(--acc)" />
+      <rect x="14" y="17" width="8" height="30" rx="1.5" fill="var(--on)" />
+      <path d="M29 45 L36.5 34 L42 39.5 L50 24" fill="none" stroke="var(--on)" strokeWidth="7" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   )
 }

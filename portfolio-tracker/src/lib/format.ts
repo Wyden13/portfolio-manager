@@ -83,6 +83,19 @@ export function signed(value: number | null | undefined, digits = 2): string {
   return value > 0 && !roundsToZero(value, digits) ? `+${num(value, digits)}` : num(value, digits)
 }
 
+/** Headline money with a dollar sign: "$248,312.40", "−$430.00". */
+export function dollars(value: number | null | undefined, digits = 2): string {
+  if (!isNumber(value)) return '—'
+  const text = `$${num(Math.abs(value), digits)}`
+  return value < 0 && !roundsToZero(value, digits) ? `${MINUS}${text}` : text
+}
+
+/** Always-signed money: "+$1,018.42", "−$430.00". Zero has no sign. */
+export function signedDollars(value: number | null | undefined, digits = 2): string {
+  if (!isNumber(value)) return '—'
+  return value > 0 && !roundsToZero(value, digits) ? `+${dollars(value, digits)}` : dollars(value, digits)
+}
+
 /** Signed percent with a true minus: "+0.41%", "−2.36%". */
 export function signedPct(value: number | null | undefined, digits = 2): string {
   return isNumber(value) ? `${signed(value, digits)}%` : '—'

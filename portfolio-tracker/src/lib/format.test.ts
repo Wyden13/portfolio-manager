@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { abbrev, dir, num, qty, share, signed, signedPct } from './format'
+import { abbrev, dir, dollars, num, qty, share, signed, signedDollars, signedPct } from './format'
 
 describe('plain number formats', () => {
   it('groups thousands with two decimals and a true minus', () => {
@@ -29,5 +29,14 @@ describe('plain number formats', () => {
     expect(qty(1.23456)).toBe('1.235')
     expect(dir(-1)).toBe('dn')
     expect(dir(0)).toBe('')
+  })
+
+  it('puts the dollar sign after the sign', () => {
+    expect(dollars(248312.4)).toBe('$248,312.40')
+    expect(dollars(-430)).toBe('−$430.00')
+    expect(dollars(null)).toBe('—')
+    expect(signedDollars(1018.42)).toBe('+$1,018.42')
+    expect(signedDollars(-430)).toBe('−$430.00')
+    expect(signedDollars(0)).toBe('$0.00')
   })
 })

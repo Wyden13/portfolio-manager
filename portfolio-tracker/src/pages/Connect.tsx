@@ -6,13 +6,13 @@ import { Icon } from '../components/Icon'
 import { errorText, useConnections } from '../hooks/useConnections'
 import { usePulse } from '../hooks/usePulse'
 import { outcomeOf, type InstitutionCard } from '../lib/connections'
-import { num, plural } from '../lib/format'
+import { dollars, plural } from '../lib/format'
 import { EASE_IN_OUT, EASE_OUT, enter, exit, rowIn } from '../lib/motion'
 import { hashFor } from '../lib/route'
 import { LINK_CHANNEL } from '../lib/snaptradePortal'
 import type { BrokerageId, BrokerageOption, PortfolioSnapshot } from '../types'
 
-const STEPS = ['Institution', 'Accounts', 'Done'] as const
+const STEPS = ['Institution', 'Sign in', 'Done'] as const
 const SUPPORTS: Record<string, string> = {
   questrade: 'TFSA, RRSP, FHSA, margin',
   wealthsimple: 'TFSA, RRSP, FHSA, cash',
@@ -26,18 +26,20 @@ function cardFor(option: BrokerageOption, cards: InstitutionCard[]): Institution
     : cards.find((c) => c.platform === 'snaptrade' && c.name.toLowerCase().includes(option.name.toLowerCase()))
 }
 
+/** "Step 2 of 3" over three bars; each bar fills from the left as its step is reached. */
 function Stepper({ step }: { step: number }) {
   return (
-    <div className="steps" aria-label={`Step ${step} of 3`}>
-      {STEPS.map((label, i) => (
-        <div key={label} className={`step${i + 1 < step ? ' done' : i + 1 === step ? ' now' : ''}`}>
-          <span className="step-k">Step {i + 1}</span>
-          <span>{label}</span>
-          {i + 1 <= step && (
-            <motion.span className="step-bar" initial={{ scaleX: 0 }} animate={{ scaleX: 1 }} transition={{ duration: 0.3, ease: EASE_OUT }} />
-          )}
-        </div>
-      ))}
+    <div className="steps">
+      <span className="m small" style={{ fontWeight: 600 }}>Step {step} of 3 · {STEPS[step - 1]}</span>
+      <div className="step-segs" aria-hidden="true">
+        {STEPS.map((label, i) => (
+          <span key={label} className="step-seg">
+            {i + 1 <= step && (
+              <motion.span className="step-bar" initial={{ scaleX: 0 }} animate={{ scaleX: 1 }} transition={{ duration: 0.3, ease: EASE_OUT }} />
+            )}
+          </span>
+        ))}
+      </div>
     </div>
   )
 }
@@ -54,7 +56,7 @@ function ArcLogo({ option, from }: { option: BrokerageOption; from: DOMRect | nu
     // x eases in-out while y eases out: the two timings bend the straight path into an arc.
     void animate(el, { x: [dx, 0], y: [dy, 0] }, { x: { duration: 0.5, ease: EASE_IN_OUT }, y: { duration: 0.5, ease: EASE_OUT } })
   }, [animate, from, scope])
-  return <span ref={scope} style={{ display: 'inline-flex' }}><BrokerageLogo name={option.name} url={option.logo_url} size="lg" /></span>
+  return <span ref={scope} style={{ display: 'inline-flex' }}><BrokerageLogo name={option.name} url={option.logo_url} /></span>
 }
 
 function QuestradeSignIn({ oauth, onToken }: { oauth: boolean; onToken: (token: string) => Promise<void> }) {
@@ -83,7 +85,7 @@ function QuestradeSignIn({ oauth, onToken }: { oauth: boolean; onToken: (token: 
           <label className="field">Refresh token
             <input type="password" autoComplete="off" spellCheck={false} value={token} required onChange={(e) => setToken(e.target.value)} />
           </label>
-          <span className="m" style={{ fontSize: 12 }}>
+          <span className="m" style={{ fontSize: 13 }}>
             In Questrade, open App Hub, register a personal app and choose “Generate new token”. Each token works once;
             InvestIQ keeps the renewed one, encrypted.
           </span>
@@ -174,48 +176,47 @@ export function Connect({ snapshot, params }: { snapshot: PortfolioSnapshot | nu
   const finishLink = () => setLinked(true)
 
   return (
-    <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 16 }}>
-      <section className="p connect">
+    <div className="connect-page">
+      <section className="card connect">
         <Stepper step={step} />
-        {arrival?.tone === 'warn' && step === 1 && <p className="banner warn" role="alert" style={{ margin: 12 }}>{arrival.text}</p>}
+        {arrival?.tone === 'warn' && step === 1 && <p className="banner warn" role="alert" style={{ margin: '16px 24px 0' }}>{arrival.text}</p>}
         <AnimatePresence mode="popLayout" initial={false}>
           <motion.div key={step} initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0, transition: enter }} exit={{ opacity: 0, x: -12, transition: exit }}>
             {step === 1 && (
               <>
                 <div className="connect-head">
-                  <h1>Select your institution</h1>
+                  <div className="two" style={{ gap: 4 }}>
+                    <h1>Select your institution</h1>
+                    <span className="m">Read-only access. InvestIQ can’t trade or move money.</span>
+                  </div>
                   <input className="srch" style={{ width: '100%' }} type="search" placeholder="Search banks and brokerages"
                     aria-label="Search banks and brokerages" value={query} onChange={(e) => setQuery(e.target.value)} />
                 </div>
-                <div className="tb" style={{ '--cols': 'minmax(0, 1fr) 200px 96px', borderTop: '1px solid var(--line)' } as CSSProperties}>
-                  <div className="tr th"><span>Institution</span><span className="L">Supports</span><span>Status</span></div>
-                  {!catalog && <div className="tr"><span className="m" style={{ gridColumn: '1 / -1' }}>{catalogError ? `Couldn’t load brokerages: ${catalogError}` : 'Loading brokerages…'}</span></div>}
+                <div className="connect-list">
+                  {!catalog && <div className="m" style={{ padding: 12 }}>{catalogError ? `Couldn’t load brokerages: ${catalogError}` : 'Loading brokerages…'}</div>}
                   {rows.map((r, i) => (
-                    <motion.button key={r.key} type="button" className="tr hv acct" disabled={r.disabled} {...rowIn(i)}
+                    <motion.button key={r.key} type="button" className="instb" disabled={r.disabled} {...rowIn(i)}
                       onClick={(e) => {
                         if (!r.option) return
                         const logo = e.currentTarget.querySelector('.broker-logo')
                         setChosen({ id: r.option.id, from: logo?.getBoundingClientRect() ?? null })
                         setStep(2)
                       }}>
-                      <span className="inst" style={{ fontWeight: 500, color: r.disabled ? 'var(--ink3)' : 'var(--ink)' }}>
-                        <BrokerageLogo name={r.name} url={r.logo} />{r.name}
-                      </span>
-                      <span className="L m">{r.supports}</span>
-                      <span className="m">{r.status}</span>
+                      <BrokerageLogo name={r.name} url={r.logo} />
+                      <span className="two" style={{ flex: 1 }}><span className="b">{r.name}</span><span className="m small">{r.supports}</span></span>
+                      <span className="m small" style={{ fontWeight: 600 }}>{r.status}</span>
                     </motion.button>
                   ))}
+                  {catalog && rows.length === 0 && <div className="m" style={{ padding: 12 }}>No institution matches “{query.trim()}”.</div>}
                 </div>
-                <div className="m" style={{ padding: 12, fontSize: 12 }}>
-                  Read-only. InvestIQ cannot place trades or move money. Other institutions can be added through SnapTrade.
-                </div>
+                <div className="note">Other institutions can be added through SnapTrade.</div>
               </>
             )}
 
             {step === 2 && option && (
               <>
                 <div className="connect-head">
-                  <h1><ArcLogo option={option} from={chosen?.from ?? null} />{option.name} · {linked ? 'accounts found' : 'sign in'}</h1>
+                  <h1><ArcLogo option={option} from={chosen?.from ?? null} />{linked ? `${option.name} accounts found` : `Sign in to ${option.name}`}</h1>
                 </div>
                 <div className="connect-body">
                   {!linked && (option.id === 'questrade'
@@ -226,19 +227,19 @@ export function Connect({ snapshot, params }: { snapshot: PortfolioSnapshot | nu
                   )}
                 </div>
                 {linked && card && (
-                  <div className="tb" style={{ '--cols': '40px minmax(0, 1fr) 96px 112px', borderTop: '1px solid var(--line)' } as CSSProperties}>
-                    <div className="tr th"><span /><span className="L">Account</span><span>Number</span><span>Value</span></div>
-                    {card.accounts.map((a, i) => (
-                      <motion.div key={a.id} className="tr" {...rowIn(i)}>
-                        <span><Icon name="check" size={14} /></span>
-                        <span className="L">{a.account_type || 'Account'}</span>
-                        <span className="m">{a.account_number}</span>
-                        <span>{num(accountTotal(a.id))}</span>
-                      </motion.div>
-                    ))}
+                  <div className="connect-body">
+                    <div className="boxed">
+                      {card.accounts.map((a, i) => (
+                        <motion.div key={a.id} className="li" style={{ '--cols': '20px minmax(0, 1fr) auto' } as CSSProperties} {...rowIn(i)}>
+                          <span className="up"><Icon name="check" size={14} /></span>
+                          <span className="two L"><span className="b">{a.account_type || 'Account'}</span><span className="m small">{a.account_number}</span></span>
+                          <span className="b">{dollars(accountTotal(a.id))}</span>
+                        </motion.div>
+                      ))}
+                    </div>
                   </div>
                 )}
-                {notice?.tone === 'warn' && <p className="banner warn" role="alert" style={{ margin: 12 }}>{notice.text}</p>}
+                {notice?.tone === 'warn' && <p className="banner warn" role="alert" style={{ margin: '0 24px' }}>{notice.text}</p>}
                 <div className="connect-foot">
                   <button type="button" className="btn o" onClick={restart}>Back</button>
                   {linked && <button type="button" className="btn" onClick={() => setStep(3)}>Continue</button>}
@@ -251,16 +252,16 @@ export function Connect({ snapshot, params }: { snapshot: PortfolioSnapshot | nu
                 <div className="connect-head">
                   <h1>
                     <span className="done-check" ref={doneRef}><Icon name="check" /></span>
-                    {option?.name ?? (chosen ? NAME[chosen.id] : 'Institution')} connected
+                    {option?.name ?? (chosen ? NAME[chosen.id] : 'Institution')} is connected
                   </h1>
                   <span className="m">
                     {card ? `${plural(card.accounts.length, 'account', 'accounts')} added. ` : ''}Positions are importing and will appear within a minute.
                   </span>
                 </div>
-                <div className="tb" style={{ '--cols': 'minmax(0, 1fr) 128px', borderTop: '1px solid var(--line)' } as CSSProperties}>
-                  <div className="tr"><span className="m">Accounts</span><span>{allAccounts}</span></div>
-                  <div className="tr"><span className="m">Added value</span><span>{num(added)}</span></div>
-                  <div className="tr" style={{ fontWeight: 600 }}><span>New portfolio total</span><span>{num(snapshot?.total_assets_base)}</span></div>
+                <div style={{ margin: '0 24px' }} className="boxed">
+                  <div className="li"><span className="m2">Accounts linked</span><span className="b">{allAccounts}</span></div>
+                  <div className="li"><span className="m2">Value added</span><span className="b">{dollars(added)}</span></div>
+                  <div className="li tot"><span>New portfolio total</span><span>{dollars(snapshot?.total_assets_base)}</span></div>
                 </div>
                 <div className="connect-foot">
                   <button type="button" className="btn o" onClick={restart}>Connect another</button>

@@ -3,7 +3,6 @@ import { useEffect, useRef, useState } from 'react'
 import { AppHeader } from './components/AppHeader'
 import { HoldingsTable } from './components/HoldingsTable'
 import { LiveGate, NoAccounts } from './components/LiveGate'
-import { Tape } from './components/Tape'
 import { AccountsContext, useAccountsLoader } from './hooks/useAccounts'
 import { ConnectionsContext, useConnectionsLoader } from './hooks/useConnections'
 import { useRoute } from './hooks/useHashTab'
@@ -60,10 +59,10 @@ function App() {
       break
     case 'holdings':
       page = live((s) => s.positions.length === 0 ? <NoAccounts /> : (
-        <>
-          <nav className="crumb m" aria-label="Breadcrumb"><a href={hashFor('portfolio')}>Portfolio</a><span>/</span><span style={{ color: 'var(--ink)' }}>Holdings</span></nav>
+        <div className="stack s20">
+          <nav className="crumb m" aria-label="Breadcrumb"><a href={hashFor('portfolio')}>Portfolio</a><span>/</span><span>Holdings</span></nav>
           <HoldingsTable snapshot={s} profiles={profiles} />
-        </>
+        </div>
       ))
       break
     case 'accounts':
@@ -73,7 +72,7 @@ function App() {
       page = symbol ? <Holding symbol={symbol} snapshot={snapshot} profiles={profiles} /> : <NoAccounts />
       break
     case 'markets':
-      page = <Markets snapshot={snapshot} profiles={profiles} params={route.params} />
+      page = <Markets snapshot={snapshot} profiles={profiles} params={route.params} indices={indices} />
       break
     case 'news':
       page = <News snapshot={snapshot} indices={indices} />
@@ -91,7 +90,6 @@ function App() {
         {route.tab === 'landing' ? <Landing /> : (
           <div className="app">
             <AppHeader route={route} theme={theme} onToggleTheme={toggleTheme} snapshot={snapshot} profiles={profiles} />
-            <Tape rows={indices} />
             <LayoutGroup>
               {/* Pages cross over: the old one fades out while the new one comes in, both on screen at once. */}
               <AnimatePresence mode="popLayout" initial={false}>

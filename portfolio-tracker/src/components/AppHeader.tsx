@@ -11,22 +11,20 @@ import { BrandMark, Icon } from './Icon'
 import { IconSwap } from './ui/IconSwap'
 import { Popover } from './ui/Popover'
 
-type NavId = 'portfolio' | 'markets' | 'accounts' | 'news' | 'screener'
+type NavId = 'portfolio' | 'markets' | 'accounts' | 'news'
 
 const NAV: Array<[NavId, string, string]> = [
   ['portfolio', 'Portfolio', hashFor('portfolio')],
   ['markets', 'Markets', hashFor('markets')],
   ['accounts', 'Accounts', hashFor('accounts')],
   ['news', 'News', hashFor('news')],
-  ['screener', 'Screener', hashFor('markets', { view: 'screener' })],
 ]
 
 /** Which nav item a page belongs under (the holding page sits under Markets, as in the design). */
 function activeNav(route: Route): NavId | null {
   switch (route.tab) {
     case 'portfolio': case 'holdings': return 'portfolio'
-    case 'markets': return route.params.get('view') === 'screener' ? 'screener' : 'markets'
-    case 'holding': return 'markets'
+    case 'markets': case 'holding': return 'markets'
     case 'accounts': return 'accounts'
     case 'news': return 'news'
     default: return null
@@ -63,7 +61,7 @@ function SearchBox({ snapshot, profiles }: { snapshot: PortfolioSnapshot | null;
 
   return (
     <div className="pop-wrap hide-m" ref={wrap}>
-      <input className="srch" type="search" placeholder="Symbol or company" aria-label="Search symbol or company"
+      <input className="srch" type="search" placeholder="Search symbols or companies" aria-label="Search symbols or companies"
         role="combobox" aria-expanded={open && hits.length > 0} aria-controls="search-results" aria-autocomplete="list"
         value={query}
         onChange={(e) => { setQuery(e.target.value); setActive(0); setOpen(true) }}
@@ -170,7 +168,7 @@ interface Props {
 export function AppHeader({ route, theme, onToggleTheme, snapshot, profiles }: Props) {
   const current = activeNav(route)
   return (
-    <header className="bar">
+    <header className="hdr-bar">
       <div className="wrap hdr">
         <MobileMenu current={current} />
         <a href={hashFor('portfolio')} className="logo"><BrandMark />InvestIQ</a>
@@ -178,8 +176,9 @@ export function AppHeader({ route, theme, onToggleTheme, snapshot, profiles }: P
           <nav className="nav hide-m" aria-label="Main">
             {NAV.map(([id, label, href]) => (
               <motion.a key={id} href={href} aria-current={current === id ? 'page' : undefined} whileTap={{ scale: 0.97 }} transition={spring}>
-                {label}
-                {current === id && <motion.span layoutId="nav-underline" className="nav-ul" transition={move} />}
+                {/* The grey pill is one element that slides to the current page. */}
+                {current === id && <motion.span layoutId="nav-pill" className="nav-pill" transition={move} />}
+                <span className="lbl">{label}</span>
               </motion.a>
             ))}
           </nav>

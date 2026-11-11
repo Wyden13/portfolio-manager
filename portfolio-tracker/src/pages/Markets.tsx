@@ -1,16 +1,18 @@
 import { AnimatePresence, motion } from 'motion/react'
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { Sparkline } from '../components/Sparkline'
 import { SampleTag } from '../components/ui/SampleTag'
 import { RangeGroup } from '../components/ui/RangeGroup'
 import { LISTINGS, SP500, TSX, type Exchange, type Listing } from '../demo/market'
 import { ASSET_CLASS_LABEL } from '../lib/aggregate'
 import { clock, shortDay } from '../lib/dates'
-import { abbrev, dir, num, signedPct } from '../lib/format'
+import { abbrev, dir, num, plural, signed, signedPct } from '../lib/format'
 import { holdingRows, type Profiles } from '../lib/holdings'
 import { EASE_OUT, enter, exit, rowIn, staggerDelay } from '../lib/motion'
 import { displaySymbol, heatColor } from '../lib/portfolio'
 import { holdingHash } from '../lib/route'
 import { squarify } from '../lib/treemap'
+import type { IndexRow } from '../hooks/useIndices'
 import type { PortfolioSnapshot } from '../types'
 
 const MARKETS = ['S&P/TSX', 'S&P 500', 'Portfolio'] as const
@@ -46,8 +48,8 @@ function sectorsOf(tiles: Tile[]): Sector[] {
 }
 
 const MAP_W = 1200
-const MAP_H = 520
-const HEAD = 22
+const MAP_H = 500
+const HEAD = 24
 
 function MarketMap({ sectors, own, mine, mapKey }: { sectors: Sector[]; own: Set<string>; mine: boolean; mapKey: string }) {
   const placed = squarify(sectors, (s) => s.weight, { x: 0, y: 0, w: MAP_W, h: MAP_H })
@@ -74,8 +76,8 @@ function MarketMap({ sectors, own, mine, mapKey }: { sectors: Sector[]; own: Set
                         <a key={t.symbol} href={holdingHash(t.symbol)} className={`hm${mine && own.has(t.symbol) ? ' own' : ''}`}
                           title={`${displaySymbol(t.symbol)} ${signedPct(t.change)}`}
                           style={{ left: `${(tx / w) * 100}%`, top: `${(ty / iw) * 100}%`, width: `${(tw / w) * 100}%`, height: `${(th / iw) * 100}%`, background: bg, color: fg }}>
-                          {!small && <span style={{ fontSize: size, fontWeight: 600 }}>{displaySymbol(t.symbol)}</span>}
-                          {!small && th > 44 && <span style={{ fontSize: 11 }}>{signedPct(t.change)}</span>}
+                          {!small && <span style={{ fontSize: size, fontWeight: 700 }}>{displaySymbol(t.symbol)}</span>}
+                          {!small && th > 44 && <span style={{ fontSize: 11, fontWeight: 500 }}>{signedPct(t.change)}</span>}
                         </a>
                       )
                     })}
@@ -94,18 +96,18 @@ function SectorBars({ sectors }: { sectors: Sector[] }) {
   const rows = [...sectors].filter((s) => s.change !== null).sort((a, b) => b.change! - a.change!)
   const max = Math.max(...rows.map((s) => Math.abs(s.change!)), 0.01)
   return (
-    <div className="tb" style={{ '--cols': '128px minmax(0, 1fr) 72px' } as CSSProperties}>
+    <div className="sec-rows">
       {rows.map((s, i) => {
         const w = `${(Math.abs(s.change!) / max) * 100}%`
         return (
-          <div key={s.name} className="tr" style={{ minHeight: 30 }}>
-            <span>{s.name}</span>
+          <div key={s.name} className="sec-row">
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
             <span className="sbar">
               {/* Bars grow out from the zero line, one after another. */}
               <span>{s.change! < 0 && <motion.i style={{ width: w, background: 'var(--dn)', transformOrigin: 'right' }} initial={{ scaleX: 0 }} animate={{ scaleX: 1 }} transition={{ ...enter, duration: 0.4, delay: staggerDelay(i) }} />}</span>
               <span>{s.change! > 0 && <motion.i style={{ width: w, background: 'var(--up)', transformOrigin: 'left' }} initial={{ scaleX: 0 }} animate={{ scaleX: 1 }} transition={{ ...enter, duration: 0.4, delay: staggerDelay(i) }} />}</span>
             </span>
-            <span className={dir(s.change)}>{signedPct(s.change)}</span>
+            <span className={`b ${dir(s.change)}`}>{signedPct(s.change)}</span>
           </div>
         )
       })}
@@ -115,20 +117,19 @@ function SectorBars({ sectors }: { sectors: Sector[] }) {
 
 function Movers({ tiles, up }: { tiles: Tile[]; up: boolean }) {
   const rows = tiles.filter((t) => t.change !== null && (up ? t.change > 0 : t.change < 0))
-    .sort((a, b) => (up ? b.change! - a.change! : a.change! - b.change!)).slice(0, 9)
+    .sort((a, b) => (up ? b.change! - a.change! : a.change! - b.change!)).slice(0, 6)
   return (
-    <div className="tb" style={{ '--cols': '72px minmax(0, 1fr) 80px 72px' } as CSSProperties}>
-      <div className="tr th"><span>Symbol</span><span>Last</span><span>Change</span><span>Volume</span></div>
-      {rows.length === 0 && <div className="tr"><span className="m" style={{ gridColumn: '1 / -1' }}>None today.</span></div>}
+    <>
+      {rows.length === 0 && <div className="li m"><span>None today.</span></div>}
       {rows.map((t, i) => (
-        <motion.div key={t.symbol} className="tr hv" {...rowIn(i)}>
-          <span><a href={holdingHash(t.symbol)} className="sym">{displaySymbol(t.symbol)}</a></span>
-          <span>{num(t.price)}</span>
-          <span className={dir(t.change)}>{signedPct(t.change)}</span>
-          <span className="m">{abbrev(t.volume)}</span>
-        </motion.div>
+        <motion.a key={t.symbol} href={holdingHash(t.symbol)} className="li" style={{ '--cols': 'minmax(0, 1fr) 80px 72px' } as CSSProperties}
+          title={t.volume !== null ? `Volume ${abbrev(t.volume)}` : undefined} {...rowIn(i)}>
+          <span className="b">{displaySymbol(t.symbol)}</span>
+          <span className="m2">{num(t.price)}</span>
+          <span className={`b ${dir(t.change)}`}>{signedPct(t.change)}</span>
+        </motion.a>
       ))}
-    </div>
+    </>
   )
 }
 
@@ -158,8 +159,8 @@ function Screener({ focus }: { focus: boolean }) {
   const set = (patch: Partial<Screen>) => setS((x) => ({ ...x, ...patch }))
   const key = JSON.stringify(s)
   return (
-    <section className="p c12" ref={ref} id="screener" style={{ scrollMarginTop: 16 }}>
-      <div className="ph"><h2>Screener <SampleTag what="The screener" /></h2><span className="m" style={{ fontSize: 12 }}>{rows.length} results</span></div>
+    <section className="stack" ref={ref} id="screener" style={{ scrollMarginTop: 16 }}>
+      <div className="sh"><h2>Screener <SampleTag what="The screener" /></h2><span className="m">{plural(rows.length, 'result', 'results')}</span></div>
       <div className="filters">
         <label className="sel">Exchange<select value={s.exchange} onChange={(e) => set({ exchange: e.target.value as Exchange | '' })}>
           <option value="">Any</option><option>TSX</option><option>NYSE</option><option>Nasdaq</option></select></label>
@@ -171,23 +172,20 @@ function Screener({ focus }: { focus: boolean }) {
           <option value="4">Over 4%</option><option value="2">Over 2%</option><option value="">Any</option></select></label>
         <label className="sel">P/E<select value={s.pe} onChange={(e) => set({ pe: e.target.value as Screen['pe'] })}>
           <option value="20">Under 20</option><option value="15">Under 15</option><option value="">Any</option></select></label>
-        <button type="button" className="btn o" style={{ marginLeft: 'auto' }} onClick={() => setS(ANY)}>Reset</button>
+        <button type="button" className="link-btn" style={{ marginLeft: 'auto', height: 40, fontSize: 13 }} onClick={() => setS(ANY)}>Reset filters</button>
       </div>
       <div className="sx">
-        <div className="tb" style={{ '--cols': '48px 72px minmax(200px, 1fr) 128px 96px 72px 80px 80px 80px 80px 88px', minWidth: 1100 } as CSSProperties}>
-          <div className="tr th"><span>No.</span><span className="L">Ticker</span><span className="L">Company</span><span className="L">Sector</span><span>Mkt cap</span><span>P/E</span><span>Fwd P/E</span><span>Yield</span><span>Price</span><span>Change</span><span>Volume</span></div>
+        <div className="tb tbC" style={{ '--cols': 'minmax(200px, 1fr) 100px 76px 56px 64px 80px 76px', minWidth: 760 } as CSSProperties}>
+          <div className="tr th"><span>Company</span><span className="L">Sector</span><span>Mkt cap</span><span>P/E</span><span>Yield</span><span>Price</span><span>Today</span></div>
           {rows.length === 0 && <div className="tr"><span className="m" style={{ gridColumn: '1 / -1' }}>No listings match. Loosen a filter or reset.</span></div>}
           {rows.map((l, i) => (
-            <motion.div key={`${key}:${l.symbol}`} className="tr hv" {...rowIn(i)}>
-              <span className="m">{i + 1}</span>
-              <span className="L"><a href={holdingHash(l.symbol)} className="sym">{displaySymbol(l.symbol)}</a></span>
-              <span className="L">{l.name}</span>
-              <span className="L m">{l.sector}</span>
-              <span>{abbrev(l.cap)}</span><span>{num(l.pe, 1)}</span><span>{num(l.fpe, 1)}</span>
-              <span>{num(l.yield, 1)}%</span><span>{num(l.price)}</span>
+            <motion.a key={`${key}:${l.symbol}`} href={holdingHash(l.symbol)} className="tr hv" {...rowIn(i)}>
+              <span className="two"><span className="sym">{displaySymbol(l.symbol)}</span><span className="m small">{l.name}</span></span>
+              <span className="L m2">{l.sector}</span>
+              <span>{abbrev(l.cap)}</span><span>{num(l.pe, 1)}</span>
+              <span className="b">{num(l.yield, 1)}%</span><span>{num(l.price)}</span>
               <span className={dir(l.change)}>{signedPct(l.change)}</span>
-              <span className="m">{abbrev(l.volume)}</span>
-            </motion.div>
+            </motion.a>
           ))}
         </div>
       </div>
@@ -195,7 +193,11 @@ function Screener({ focus }: { focus: boolean }) {
   )
 }
 
-export function Markets({ snapshot, profiles, params }: { snapshot: PortfolioSnapshot | null; profiles: Profiles; params: URLSearchParams }) {
+const CARD_INDICES = ['^GSPTSE', '^GSPC', '^IXIC', '^DJI']
+
+export function Markets({ snapshot, profiles, params, indices }: {
+  snapshot: PortfolioSnapshot | null; profiles: Profiles; params: URLSearchParams; indices: IndexRow[]
+}) {
   const [market, setMarket] = useState<Market>('S&P/TSX')
   const [mine, setMine] = useState(true)
   const tiles = useMemo(() => tilesFor(market, snapshot, profiles), [market, snapshot, profiles])
@@ -203,50 +205,70 @@ export function Markets({ snapshot, profiles, params }: { snapshot: PortfolioSna
   const own = useMemo(() => new Set(snapshot?.positions.map((p) => p.symbol) ?? []), [snapshot])
   const sample = market !== 'Portfolio'
   const now = snapshot?.as_of ?? new Date().toISOString()
-  const exchange = market === 'S&P 500' ? 'S&P 500' : 'TSX'
+  const scope = market === 'Portfolio' ? 'Your holdings' : market === 'S&P 500' ? 'S&P 500' : 'TSX'
+  const cards = indices.filter((r) => r.yahoo && CARD_INDICES.includes(r.yahoo))
 
   return (
-    <>
-      <div className="page-head">
-        <div className="page-title">
-          <h1>Markets</h1>
-          <span className="m">{market === 'Portfolio' ? 'Your holdings' : `${market} Composite`} · {shortDay(now)}, {clock(now)}{sample ? ' · sample figures' : ''}</span>
-        </div>
-        <div className="actions" style={{ gap: 16 }}>
-          <label className="chk"><input type="checkbox" checked={mine} onChange={() => setMine((m) => !m)} />Outline my holdings</label>
-          <RangeGroup label="Market" value={market} options={MARKETS} onChange={setMarket} size="lg" />
-        </div>
-      </div>
+    <div className="layout">
+      <div className="main">
+        <section className="stack s20">
+          <div className="page-title">
+            <h1 className="h1">Markets</h1>
+            <span className="m">{shortDay(now)}, {clock(now)} · {market === 'Portfolio' ? 'your holdings' : `${market} Composite`}{sample ? ' · sample figures' : ''}</span>
+          </div>
+          <div className="idx">
+            {cards.map((x, i) => (
+              <motion.div key={x.name} className="card" {...rowIn(i)}>
+                <span className="m2 small" style={{ fontWeight: 500, display: 'flex', justifyContent: 'space-between', gap: 8, whiteSpace: 'nowrap' }}>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{x.name}</span>{x.sample && <SampleTag what="This figure" />}
+                </span>
+                <div className="idx-row">
+                  <div className="two">
+                    <span className="b" style={{ fontSize: 18 }}>{num(x.last, x.digits)}</span>
+                    <span className={`small ${dir(x.change)}`} style={{ fontWeight: 600 }}>{x.absolute ? signed(x.change, 3) : signedPct(x.change)}</span>
+                  </div>
+                  <Sparkline values={x.closes} />
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </section>
 
-      <div className="grid">
-        <section className="p c12">
-          <div className="ph">
+        <section className="stack" style={{ gap: 12 }}>
+          <div className="sh" style={{ alignItems: 'center' }}>
             <h2>Market map {sample && <SampleTag what="The market map" />}</h2>
-            <div className="scale m" aria-label="Colour scale from −3% to +3%">
-              <span>−3%</span>
-              <span>{['n3', 'n2', 'n1', 'h0', 'h1', 'h2', 'h3'].map((c) => <i key={c} style={{ background: `var(--${c})` }} />)}</span>
-              <span>+3%</span>
+            <div className="actions" style={{ gap: 16 }}>
+              <label className="chk"><input type="checkbox" checked={mine} onChange={() => setMine((m) => !m)} />Outline my holdings</label>
+              <RangeGroup label="Market" value={market} options={MARKETS} onChange={setMarket} />
             </div>
           </div>
           {sectors.length ? <MarketMap sectors={sectors} own={own} mine={mine} mapKey={market} />
-            : <div className="state" style={{ minHeight: 520 }}>{snapshot ? 'No priced holdings to map.' : 'Loading your holdings…'}</div>}
-        </section>
-
-        <section className="p c4">
-          <div className="ph"><h2>Sectors {sample && <SampleTag what="Sector moves" />}</h2><span className="m" style={{ fontSize: 12 }}>Today</span></div>
-          <SectorBars key={market} sectors={sectors} />
-        </section>
-        <section className="p c4">
-          <div className="ph"><h2>Top gainers {sample && <SampleTag what="Movers" />}</h2><span className="m" style={{ fontSize: 12 }}>{market === 'Portfolio' ? 'Your holdings' : exchange}</span></div>
-          <Movers key={market} tiles={tiles} up />
-        </section>
-        <section className="p c4">
-          <div className="ph"><h2>Top losers {sample && <SampleTag what="Movers" />}</h2><span className="m" style={{ fontSize: 12 }}>{market === 'Portfolio' ? 'Your holdings' : exchange}</span></div>
-          <Movers key={market} tiles={tiles} up={false} />
+            : <div className="state" style={{ minHeight: 500 }}>{snapshot ? 'No priced holdings to map.' : 'Loading your holdings…'}</div>}
+          <div className="scale m" aria-label="Colour scale from −3% to +3%">
+            <span>−3%</span>
+            <span>{['n3', 'n2', 'n1', 'h0', 'h1', 'h2', 'h3'].map((c) => <i key={c} style={{ background: `var(--${c})` }} />)}</span>
+            <span>+3%</span>
+            <span className="hide-m" style={{ marginLeft: 'auto' }}>Size: {market === 'Portfolio' ? 'your value' : 'market cap'} · Colour: today’s change</span>
+          </div>
         </section>
 
         <Screener focus={params.get('view') === 'screener'} />
       </div>
-    </>
+
+      <aside className="rail">
+        <section className="card">
+          <div className="ch"><h3>Sectors {sample && <SampleTag what="Sector moves" />}</h3><span className="m small">Today</span></div>
+          <SectorBars key={market} sectors={sectors} />
+        </section>
+        <section className="card">
+          <div className="ch"><h3>Top gainers · {scope} {sample && <SampleTag what="Movers" />}</h3></div>
+          <Movers key={market} tiles={tiles} up />
+        </section>
+        <section className="card">
+          <div className="ch"><h3>Top losers · {scope} {sample && <SampleTag what="Movers" />}</h3></div>
+          <Movers key={market} tiles={tiles} up={false} />
+        </section>
+      </aside>
+    </div>
   )
 }

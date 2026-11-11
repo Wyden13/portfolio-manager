@@ -1,0 +1,229 @@
+import asyncio
+import calendar
+import time
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from datetime import date, datetime, timedelta, timezone
+from decimal import Decimal
+
+# Broker ticker -> Yahoo ticker for one-off differences the rules in to_yahoo_symbol miss.
+YAHOO_OVERRIDES: dict[str, str] = {}
+# Broker exchange suffix -> Yahoo suffix. Questrade writes TSX Venture as .VN; Yahoo uses .V.
+# Foreign listings use Yahoo's own suffixes; without them a dot would read as a share class.
+_SUFFIXES = {".TO": ".TO", ".V": ".V", ".VN": ".V", ".CN": ".CN", ".NE": ".NE"} | {
+    s: s for s in (".L", ".DE", ".F", ".PA", ".AS", ".BR", ".LS", ".MI", ".MC", ".SW", ".VI", ".ST",
+                   ".OL", ".CO", ".HE", ".IR", ".HK", ".T", ".AX", ".NZ", ".SI", ".KS", ".TW", ".SA", ".MX")
+}
+# Yahoo quotes some listings in a currency's minor unit (LSE in pence, JSE in cents).
+_MINOR_UNITS = {"GBp": ("GBP", 100), "GBX": ("GBP", 100), "ZAc": ("ZAR", 100), "ILA": ("ILS", 100)}
+# Yahoo quoteType -> our asset class.
+_ASSET_CLASSES = {"EQUITY": "stock", "ETF": "etf", "MUTUALFUND": "fund"}
+
+
+@dataclass
+class Quote:
+    symbol: str  # the broker symbol that was asked for
+    price: Decimal
+    currency: str
+    as_of: datetime  # naive UTC time we fetched it
+    previous_close: Decimal | None = None  # the last session's close, same unit as price
+    volume: int | None = None  # shares traded in the current session
+
+
+@dataclass
+class SecurityProfile:
+    """What a listing is, for the holdings table. Fields Yahoo doesn't have are None."""
+    asset_class: str = "other"  # stock | etf | fund | other
+    name: str | None = None
+    sector: str | None = None
+    industry: str | None = None
+    country: str | None = None
+    market_cap: Decimal | None = None
+    market_cap_currency: str | None = None
+    pe: Decimal | None = None  # trailing
+    website: str | None = None
+
+
+def day_timestamp(day: date) -> int:
+    """Unix seconds of the day's midnight UTC (what daily charts key bars on)."""
+    return calendar.timegm(day.timetuple())
+
+
+@dataclass
+class Candle:
+    day: date  # the trading day (exchange-local date)
+    open: Decimal
+    high: Decimal
+    low: Decimal
+    close: Decimal
+    volume: int
+
+    @property
+    def time(self) -> int:
+        return day_timestamp(self.day)
+
+
+@dataclass
+class PriceHistory:
+    symbol: str
+    currency: str
+    candles: list[Candle]
+
+
+def to_yahoo_symbol(symbol: str) -> str:
+    """Map a broker ticker to Yahoo's: exchange suffix as Yahoo spells it, share-class dots as dashes
+    (BRK.B -> BRK-B, BBD.B.TO -> BBD-B.TO)."""
+    symbol = symbol.upper()
+    if symbol in YAHOO_OVERRIDES:
+        return YAHOO_OVERRIDES[symbol]
+    base, suffix = symbol, ""
+    for broker_suffix, yahoo_suffix in _SUFFIXES.items():
+        if symbol.endswith(broker_suffix):
+            base, suffix = symbol[: -len(broker_suffix)], yahoo_suffix
+            break
+    return base.replace(".", "-") + suffix
+
+
+def to_major_unit(price: Decimal, currency: str) -> tuple[Decimal, str]:
+    """Convert a minor-unit quote (GBp) to its ISO currency (GBP). Case matters: GBp is not GBP."""
+    if currency in _MINOR_UNITS:
+        iso, divisor = _MINOR_UNITS[currency]
+        return price / divisor, iso
+    return price, currency
+
+
+def _positive(value, allow_zero: bool = False) -> Decimal | None:
+    """A positive finite number from Yahoo, else None (it sends None, NaN, 'Infinity' and zeros)."""
+    try:
+        number = Decimal(str(value))
+    except Exception:
+        return None
+    return number if number.is_finite() and (number > 0 or (allow_zero and number == 0)) else None
+
+
+def _optional_field(info, key: str, allow_zero: bool = False) -> Decimal | None:
+    """A FastInfo field that may be missing or fail to load."""
+    try:
+        return _positive(info[key], allow_zero)
+    except Exception:
+        return None
+
+
+class QuoteProvider(ABC):
+    """Source of real-time prices. Swap implementations without touching the pipeline."""
+
+    @abstractmethod
+    async def get_quotes(self, symbols: list[str]) -> dict[str, Quote]:
+        """Return quotes for the symbols that could be priced; unknown symbols are omitted."""
+
+    async def get_profiles(self, symbols: list[str]) -> dict[str, SecurityProfile]:
+        """Profiles per symbol; symbols it knows nothing about may be omitted."""
+        return {}
+
+
+class HistoryProvider(ABC):
+    """Source of historical OHLC bars."""
+
+    @abstractmethod
+    async def get_history(self, symbol: str, start: date, end: date, interval: str) -> PriceHistory:
+        """Bars from start to end inclusive; interval is "1d", "1wk" or "1mo". Empty candles if unknown."""
+
+
+class YFinanceProvider(QuoteProvider, HistoryProvider):
+    """Unofficial Yahoo Finance via yfinance. Fine for prototyping, may rate-limit or break."""
+
+    # Charts refetch on every range switch; keep Yahoo calls down without serving stale bars long.
+    HISTORY_TTL_SECONDS = 60
+    # Ticker.info is slow (a full quote-summary call); a day-old market cap or P/E is fine.
+    PROFILE_TTL_SECONDS = 24 * 3600
+    PROFILE_FAILURE_TTL_SECONDS = 600
+
+    def __init__(self, ticker_factory=None):
+        if ticker_factory is None:
+            import yfinance
+
+            ticker_factory = yfinance.Ticker
+        self._ticker = ticker_factory
+        self._history_cache: dict[tuple, tuple[float, PriceHistory]] = {}
+        self._profile_cache: dict[str, tuple[float, SecurityProfile]] = {}  # symbol -> (expires, profile)
+
+    def _fetch_profile(self, symbol: str) -> tuple[SecurityProfile, bool]:
+        try:
+            info = self._ticker(to_yahoo_symbol(symbol)).info or {}
+        except Exception:
+            return SecurityProfile(), False
+        market_cap, cap_currency = _positive(info.get("marketCap")), info.get("currency") or None
+        if market_cap is not None and cap_currency:
+            market_cap, cap_currency = to_major_unit(market_cap, cap_currency)
+        return SecurityProfile(
+            asset_class=_ASSET_CLASSES.get(str(info.get("quoteType") or "").upper(), "other"),
+            name=info.get("longName") or info.get("shortName") or None,
+            sector=info.get("sector") or None, industry=info.get("industry") or None,
+            country=info.get("country") or None,
+            market_cap=market_cap, market_cap_currency=cap_currency if market_cap is not None else None,
+            pe=_positive(info.get("trailingPE")), website=info.get("website") or None,
+        ), True
+
+    async def get_profiles(self, symbols: list[str]) -> dict[str, SecurityProfile]:
+        now = time.monotonic()
+        missing = sorted({s for s in symbols if s not in self._profile_cache or self._profile_cache[s][0] <= now})
+        results = await asyncio.gather(*(asyncio.to_thread(self._fetch_profile, s) for s in missing))
+        for symbol, (profile, ok) in zip(missing, results):
+            ttl = self.PROFILE_TTL_SECONDS if ok else self.PROFILE_FAILURE_TTL_SECONDS
+            self._profile_cache[symbol] = (now + ttl, profile)
+        return {s: self._profile_cache[s][1] for s in symbols}
+
+    def _fetch(self, symbol: str) -> Quote | None:
+        try:
+            info = self._ticker(to_yahoo_symbol(symbol)).fast_info
+            price = info["last_price"]
+            currency = info["currency"]
+        except Exception:
+            return None
+        if price is None or price != price or price <= 0:  # None, NaN, or nonsense
+            return None
+        price, major = to_major_unit(Decimal(str(price)), currency or "")
+        previous = _optional_field(info, "previous_close")
+        previous = to_major_unit(previous, currency or "")[0] if previous is not None else None
+        volume = _optional_field(info, "last_volume", allow_zero=True)  # nothing traded yet today is 0
+        return Quote(
+            symbol=symbol,
+            price=price,
+            currency=major,
+            as_of=datetime.now(timezone.utc).replace(tzinfo=None),
+            previous_close=previous,
+            volume=int(volume) if volume is not None else None,
+        )
+
+    async def get_quotes(self, symbols: list[str]) -> dict[str, Quote]:
+        unique = sorted(set(symbols))
+        results = await asyncio.gather(*(asyncio.to_thread(self._fetch, s) for s in unique))
+        return {s: q for s, q in zip(unique, results) if q is not None}
+
+    def _fetch_history(self, symbol: str, start: date, end: date, interval: str) -> PriceHistory:
+        empty = PriceHistory(symbol, "", [])
+        try:
+            ticker = self._ticker(to_yahoo_symbol(symbol))
+            # yfinance's end is exclusive.
+            frame = ticker.history(start=start, end=end + timedelta(days=1), interval=interval, auto_adjust=False)
+            currency = ticker.fast_info["currency"] or ""
+        except Exception:
+            return empty
+        candles = []
+        for when, row in frame.iterrows():
+            values = [row["Open"], row["High"], row["Low"], row["Close"]]
+            if any(v is None or v != v for v in values):  # NaN rows for halted days
+                continue
+            ohlc = [to_major_unit(Decimal(str(v)), currency)[0] for v in values]
+            candles.append(Candle(when.date(), *ohlc, int(row["Volume"] or 0)))
+        return PriceHistory(symbol, to_major_unit(Decimal(0), currency)[1], candles)
+
+    async def get_history(self, symbol: str, start: date, end: date, interval: str) -> PriceHistory:
+        key = (symbol, start, end, interval)
+        cached = self._history_cache.get(key)
+        if cached and time.monotonic() - cached[0] < self.HISTORY_TTL_SECONDS:
+            return cached[1]
+        history = await asyncio.to_thread(self._fetch_history, symbol, start, end, interval)
+        if history.candles:
+            self._history_cache[key] = (time.monotonic(), history)
+        return history

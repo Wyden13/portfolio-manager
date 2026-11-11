@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" font-family="'IBM Plex Sans', system-ui, sans-serif">
+  <rect width="1200" height="630" fill="#0C0E12"/>
+  <svg x="64" y="64" width="40" height="40" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#5B8DEF"/><rect x="14" y="17" width="8" height="30" rx="1.5" fill="#0C0E12"/><path d="M29 45 L36.5 34 L42 39.5 L50 24" fill="none" stroke="#0C0E12" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  <text x="116" y="94" font-size="26" font-weight="700" fill="#E7E9EC">InvestIQ</text>
+  <text x="64" y="280" font-size="56" font-weight="700" fill="#E7E9EC">Every account.</text>
+  <text x="64" y="340" font-size="56" font-weight="700" fill="#E7E9EC">One portfolio.</text>
+  <text x="64" y="396" font-size="20" fill="#A9B0BA">TFSA, RRSP, FHSA and brokerage accounts</text>
+  <text x="64" y="424" font-size="20" fill="#A9B0BA">with market data and news in one place.</text>
+  <g transform="translate(632 196)">
+    <rect width="504" height="258" rx="12" fill="none" stroke="#242932"/>
+    <text x="16" y="30" font-size="14" fill="#8A929E">Market value</text>
+    <line x1="0" x2="504" y1="46" y2="46" stroke="#242932"/>
+    <text x="16" y="74" font-size="14" fill="#8A929E">Day change</text>
+    <line x1="0" x2="504" y1="90" y2="90" stroke="#242932"/>
+    <path d="M0 210 L25 218 L50 214 L76 220 L101 208 L126 202 L151 196 L176 168 L202 178 L227 174 L252 170 L277 164 L302 170 L328 160 L353 142 L378 144 L403 156 L428 136 L454 128 L479 132 L504 114" fill="none" stroke="#34B36E" stroke-width="2" stroke-linejoin="round"/>
+  </g>
+  <line x1="64" x2="1136" y1="550" y2="550" stroke="#242932"/>
+  <text x="1136" y="582" font-size="14" fill="#8A929E" text-anchor="end">Read-only connections · Canadian brokerages</text>
+</svg>

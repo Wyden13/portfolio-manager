@@ -1,0 +1,14 @@
+fastapi
+uvicorn
+httpx
+sqlalchemy
+alembic
+cryptography
+pydantic-settings
+protobuf>=7.35
+yfinance
+snaptrade-python-sdk
+pytest
+pytest-asyncio
+respx
+grpcio-tools  # only needed to regenerate app/proto/pnl_pb2.py

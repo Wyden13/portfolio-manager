@@ -1,0 +1,95 @@
+import { useCallback, useEffect, useState } from 'react'
+import { fetchPositions } from '../api/client'
+import { decodePnLFrame } from '../lib/pnlFrame'
+import type { PortfolioSnapshot } from '../types'
+
+export interface PnLSample { t: number; value: number }
+/** Recent live samples for sparklines: total assets (TOTAL_KEY) and the converted unrealized P&L (BASE_KEY). */
+export type PnLHistory = Record<string, PnLSample[]>
+export const BASE_KEY = 'base'
+export const TOTAL_KEY = 'total'
+
+/**
+ * connecting: first REST load in flight, nothing to show yet.
+ * offline:    the REST load failed; nothing to show (never fake numbers), the user can retry.
+ * live:       we have a snapshot; `stream` says whether updates are flowing.
+ *             open = SSE connected, reconnecting = the browser is retrying by itself,
+ *             closed = the server refused the stream (no automatic retry).
+ */
+export type LiveState =
+  | { status: 'connecting' }
+  | { status: 'offline'; error: string }
+  | { status: 'live'; snapshot: PortfolioSnapshot; history: PnLHistory; stream: StreamState }
+
+export type StreamState = 'open' | 'reconnecting' | 'closed'
+
+const MAX_SAMPLES = 60
+// The backend names its SSE events `pnl` (see backend/app/services/streaming.py).
+const PNL_EVENT = 'pnl'
+
+function appendHistory(prev: PnLHistory, snap: PortfolioSnapshot): PnLHistory {
+  const t = Date.parse(snap.as_of)
+  const next: PnLHistory = { ...prev }
+  const series: Array<[string, number | null | undefined]> = [
+    [TOTAL_KEY, snap.total_assets_base], [BASE_KEY, snap.base_total?.unrealized_pnl],
+  ]
+  for (const [key, value] of series) {
+    if (value === null || value === undefined) continue
+    const samples = prev[key] ?? []
+    if (samples.at(-1)?.t === t) continue // the REST snapshot and the first SSE frame can coincide
+    next[key] = [...samples, { t, value }].slice(-MAX_SAMPLES)
+  }
+  return next
+}
+
+export function useLivePortfolio(): { state: LiveState; retry: () => void } {
+  const [state, setState] = useState<LiveState>({ status: 'connecting' })
+  const [attempt, setAttempt] = useState(0)
+
+  useEffect(() => {
+    const controller = new AbortController()
+    const cleanups: Array<() => void> = []
+
+    const push = (snap: PortfolioSnapshot) =>
+      setState((s) => s.status === 'live'
+        ? { ...s, snapshot: snap, history: appendHistory(s.history, snap) }
+        : { status: 'live', snapshot: snap, history: appendHistory({}, snap), stream: 'open' })
+    const setStream = (stream: StreamState) =>
+      setState((s) => (s.status === 'live' ? { ...s, stream } : s))
+
+    const startLive = (initial: PortfolioSnapshot) => {
+      push(initial)
+      const es = new EventSource('/api/stream/pnl')
+      es.onopen = () => setStream('open')
+      es.addEventListener(PNL_EVENT, (ev) => {
+        try {
+          push(decodePnLFrame((ev as MessageEvent<string>).data))
+        } catch (err) {
+          // One bad frame shouldn't blank the dashboard; the next one arrives within seconds.
+          console.error('Skipping undecodable P&L frame', err)
+        }
+      })
+      // EventSource retries on its own unless the server answered with an error (CLOSED).
+      es.onerror = () => setStream(es.readyState === EventSource.CLOSED ? 'closed' : 'reconnecting')
+      cleanups.push(() => es.close())
+    }
+
+    fetchPositions(controller.signal)
+      .then(startLive)
+      .catch((err: Error) => {
+        if (!controller.signal.aborted) setState({ status: 'offline', error: err.message })
+      })
+
+    return () => {
+      controller.abort()
+      cleanups.forEach((fn) => fn())
+    }
+  }, [attempt])
+
+  const retry = useCallback(() => {
+    setState({ status: 'connecting' })
+    setAttempt((n) => n + 1)
+  }, [])
+
+  return { state, retry }
+}

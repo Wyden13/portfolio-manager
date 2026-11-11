@@ -1,111 +1,74 @@
+/* Tokens from the InvestIQ design canvas (version 2): ink, rules, one accent, gain and loss.
+   k1..k6 = allocation series; h0..h3 / n1..n3 = market map gain / loss scale. */
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+  --bg: #FFFFFF;
+  --sub: #F4F5F7;
+  --line: #E6E8EC;
+  --line2: #D3D7DD;
+  --ink: #0E1116;
+  --ink2: #4B5361;
+  --ink3: #69717E;
+  --acc: #1A56DB;
+  --acc2: #1546B3;
+  --accs: #E9F0FD;
+  --on: #FFFFFF;
+  --up: #0A7A3D;
+  --dn: #C62A22;
+  --k1: #1A56DB; --k2: #5C86E8; --k3: #A3BBF2; --k4: #4B5361; --k5: #9AA1AC; --k6: #D5D9DF;
+  --h3: #1D7A47; --h2: #86C4A0; --h1: #D2ECDC; --h0: #E9EBEE;
+  --n1: #F7D6D3; --n2: #EA9690; --n3: #BF352E;
+  --scrim: rgba(14, 17, 22, 0.4);
+  --pop-shadow: 0 12px 32px rgba(14, 17, 22, 0.12);
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
+  /* Motion: ease-out for entrances, ease-in-out for moves, exits 20% shorter than entrances. */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --dur-enter: 200ms;
+  --dur-exit: 160ms;
+  --dur-press: 120ms;
 
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
+  --font: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color-scheme: light;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
-
-  #social .button-icon {
-    filter: invert(1) brightness(2);
-  }
+:root[data-theme='dark'] {
+  --bg: #0C0E12;
+  --sub: #161920;
+  --line: #242932;
+  --line2: #363C47;
+  --ink: #E7E9EC;
+  --ink2: #A9B0BA;
+  --ink3: #8A929E;
+  --acc: #5B8DEF;
+  --acc2: #7AA3F2;
+  --accs: #17233D;
+  --on: #0C0E12;
+  --up: #34B36E;
+  --dn: #EF5A52;
+  --k1: #5B8DEF; --k2: #3D63B8; --k3: #283F70; --k4: #A9B0BA; --k5: #6A727E; --k6: #383E49;
+  --h3: #2E9E62; --h2: #1D5C3B; --h1: #15301F; --h0: #22262D;
+  --n1: #3A1C1A; --n2: #7A2A24; --n3: #C93A31;
+  --scrim: rgba(0, 0, 0, 0.55);
+  --pop-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  color-scheme: dark;
 }
 
-#root {
-  width: 1126px;
-  max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
-  min-height: 100svh;
-  display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
-}
+* { box-sizing: border-box; }
 
 body {
   margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 400 14px/1.5 var(--font);
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
 }
 
-h1,
-h2 {
-  font-family: var(--heading);
-  font-weight: 500;
-  color: var(--text-h);
-}
+h1, h2, h3, p { margin: 0; }
+button, select, input { font: inherit; color: inherit; }
+a { color: inherit; text-decoration: none; }
 
-h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
-  margin: 32px 0;
-  @media (max-width: 1024px) {
-    font-size: 36px;
-    margin: 20px 0;
-  }
-}
-h2 {
-  font-size: 24px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
-  margin: 0 0 8px;
-  @media (max-width: 1024px) {
-    font-size: 20px;
-  }
-}
-p {
-  margin: 0;
-}
-
-code,
-.counter {
-  font-family: var(--mono);
-  display: inline-flex;
-  border-radius: 4px;
-  color: var(--text-h);
-}
-
-code {
-  font-size: 15px;
-  line-height: 135%;
-  padding: 4px 8px;
-  background: var(--code-bg);
+.sr-only {
+  position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap;
 }

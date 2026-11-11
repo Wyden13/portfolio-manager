@@ -6,7 +6,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from snaptrade_client import ApiException as SnapTradeApiException
 
-from app.api import accounts, connections, history, performance, positions, stream, sync, transactions
+from app.api import accounts, connections, history, holdings, performance, positions, stream, sync, transactions
 from app.config import settings
 from app.integrations.base import ReauthRequired
 from app.services.scheduler import run_scheduler
@@ -29,7 +29,7 @@ async def lifespan(app: FastAPI):
 
 # Schema is managed by Alembic: run `alembic upgrade head` before starting.
 app = FastAPI(title="InvestIQ", lifespan=lifespan)
-for module in (accounts, connections, sync, transactions, positions, performance, history, stream):
+for module in (accounts, connections, sync, transactions, positions, holdings, performance, history, stream):
     app.include_router(module.router)
 
 

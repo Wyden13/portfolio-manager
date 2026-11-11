@@ -12,7 +12,7 @@ describe('decodePnLFrame', () => {
       {
         accountId: 7n, symbol: 'AAPL', currency: 'USD', quantity: 10, averageCost: 100, costBasis: 1000,
         price: 150, marketValue: 1500, unrealizedPnl: 500, unrealizedPct: 50, firstBuyMs: 1_690_000_000_000n,
-        status: Status.OK, assetClass: 'stock',
+        status: Status.OK, assetClass: 'stock', dayChangePct: -1.25, volume: 4200n,
       },
       { accountId: 7n, symbol: 'XYZ', currency: 'CAD', costBasis: 200, status: Status.NO_QUOTE, incompleteHistory: true },
       { accountId: 8n, symbol: 'TD.TO', currency: 'CAD', quantity: 40, price: 90, marketValue: 3600, status: Status.NO_COST, source: Source.BROKER },
@@ -77,5 +77,6 @@ describe('decodePnLFrame', () => {
     expect(snap.accounts[1]).toMatchObject({ account_id: 8, unrealized_pct: null, cash: [], complete: false })
     expect([snap.base_currency, snap.cash_base, snap.total_assets_base]).toEqual(['CAD', null, 5674])
     expect(snap.positions.map((p) => p.asset_class)).toEqual(['stock', 'other', 'other'])
+    expect(snap.positions.map((p) => [p.day_change_pct, p.volume])).toEqual([[-1.25, 4200], [null, null], [null, null]])
   })
 })

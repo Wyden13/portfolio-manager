@@ -19,7 +19,7 @@ from app.models.position import Position
 from app.models.transaction import Transaction, TransactionKind
 from app.proto import pnl_pb2
 from app.services.currency import FxProvider
-from app.services.market_data import Quote, QuoteProvider
+from app.services.market_data import Quote, QuoteProvider, SecurityProfile
 from app.services.streaming import pnl_events
 from tests.test_questrade import API, LOGIN, token_payload
 
@@ -29,7 +29,11 @@ class FakeProvider(QuoteProvider):
         self.price = price
 
     async def get_quotes(self, symbols):
-        return {s: Quote(s, D(self.price), "CAD", datetime(2026, 6, 1)) for s in symbols}
+        return {s: Quote(s, D(self.price), "CAD", datetime(2026, 6, 1), previous_close=D(100), volume=500) for s in symbols}
+
+    async def get_profiles(self, symbols):
+        return {"RY.TO": SecurityProfile("stock", "Royal Bank of Canada", "Financial Services", "Banks - Diversified",
+                                         "Canada", D(250_000_000_000), "CAD", D("14.5"), "https://www.rbc.com")}
 
 
 class FakeFx(FxProvider):
@@ -67,7 +71,8 @@ async def test_events_are_base64_protobuf(seeded):
     assert p.source == pnl_pb2.SOURCE_TRANSACTIONS
     assert update.totals[0].currency == "CAD" and update.totals[0].market_value == 1100.0
     assert update.HasField("base_total") and update.base_total.unrealized_pnl == 100.0
-    assert p.asset_class == "other"  # the fake provider can't classify
+    assert p.asset_class == "stock"
+    assert p.HasField("day_change_pct") and (p.day_change_pct, p.volume) == (10.0, 500)
     assert [(a.account_id, a.total, a.holdings, a.complete) for a in update.accounts] == [(1, 1100.0, 1, True)]
     assert update.HasField("total_assets_base") and update.total_assets_base == 1100.0
     assert p.first_buy_ms == int(datetime(2026, 1, 2).replace(tzinfo=__import__("datetime").timezone.utc).timestamp() * 1000)
@@ -108,7 +113,13 @@ def test_rest_endpoints(seeded):
         assert body["positions"][0]["unrealized_pnl"] == -100.0
         assert body["totals"][0]["unrealized_pct"] == -10.0
         assert body["base_total"]["currency"] == "CAD" and body["positions"][0]["source"] == "transactions"
-        assert body["positions"][0]["asset_class"] == "other"
+        assert body["positions"][0]["asset_class"] == "stock"
+        assert (body["positions"][0]["day_change_pct"], body["positions"][0]["volume"]) == (-10.0, 500)
+        profiles = client.get("/api/holdings/profiles").json()
+        assert profiles == {"RY.TO": {
+            "asset_class": "stock", "name": "Royal Bank of Canada", "sector": "Financial Services",
+            "industry": "Banks - Diversified", "country": "Canada", "market_cap": 250_000_000_000.0,
+            "market_cap_currency": "CAD", "pe": 14.5, "website": "https://www.rbc.com"}}
         assert body["accounts"][0]["total"] == 900.0 and body["accounts"][0]["cash"] == []
         assert (body["base_currency"], body["cash_base"], body["total_assets_base"]) == ("CAD", 0.0, 900.0)
         txs = client.get("/api/transactions", params={"symbol": "RY.TO"}).json()

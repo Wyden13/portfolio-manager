@@ -67,6 +67,8 @@ export function decodePnLFrame(b64: string): PortfolioSnapshot {
         incomplete_history: p.incompleteHistory,
         source: p.source === Source.BROKER ? 'broker' : 'transactions',
         asset_class: assetClass(p.assetClass),
+        day_change_pct: p.dayChangePct ?? null,
+        volume: p.volume === undefined ? null : Number(p.volume),
       }
     }),
     totals: msg.totals.map(total),

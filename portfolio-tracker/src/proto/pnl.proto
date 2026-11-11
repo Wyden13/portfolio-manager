@@ -58,6 +58,8 @@ message PositionPnL {
   bool incomplete_history = 14;          // stored sells exceeded stored buys (so source is broker)
   Source source = 15;
   string asset_class = 16;               // stock | etf | fund | other
+  optional double day_change_pct = 17;   // price vs the last session's close; unset without a quote or close
+  optional int64 volume = 18;            // shares traded this session; unset without a quote
 }
 
 // Where quantity and cost come from: our stored transactions when they reproduce the broker's

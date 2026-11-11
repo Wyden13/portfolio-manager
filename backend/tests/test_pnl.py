@@ -5,7 +5,7 @@ from app.models.account import AccountRecord
 from app.models.position import Position
 from app.models.transaction import Transaction, TransactionKind
 from app.services.currency import QuoteFxProvider
-from app.services.market_data import Quote, QuoteProvider, YFinanceProvider, to_yahoo_symbol
+from app.services.market_data import Quote, QuoteProvider, SecurityProfile, YFinanceProvider, to_yahoo_symbol
 from app.services.performance import (
     CashBalance, CurrencyTotal, Holding, cash_balances, compute_holdings, compute_pnl, convert_totals, reconcile,
     summarize_accounts,
@@ -219,8 +219,8 @@ async def test_build_pnl_rolls_cash_into_total_assets_and_tags_asset_classes(db)
         async def get_quotes(self, symbols):
             return {"RY.TO": q(110)}
 
-        async def get_asset_classes(self, symbols):
-            return {"RY.TO": "stock"}
+        async def get_profiles(self, symbols):
+            return {"RY.TO": SecurityProfile(asset_class="stock")}
 
     snap = await build_pnl(holdings, Fake(), QuoteFxProvider(Fake()), "CAD", cash=cash)
     assert snap.positions[0].asset_class == "stock"
@@ -228,18 +228,53 @@ async def test_build_pnl_rolls_cash_into_total_assets_and_tags_asset_classes(db)
     assert snap.accounts[0].total == D(1600) and snap.base_total.market_value == D(1100)
 
 
-async def test_yfinance_asset_classes_are_cached_and_failures_read_as_other():
+async def test_yfinance_profiles_are_cached_and_failures_read_as_empty():
     calls = []
+    infos = {
+        "RY.TO": {"quoteType": "EQUITY", "longName": "Royal Bank of Canada", "shortName": "RBC", "sector": "Financial Services",
+                  "industry": "Banks - Diversified", "country": "Canada", "marketCap": 250_000_000_000, "currency": "CAD",
+                  "trailingPE": 14.2, "website": "https://www.rbc.com"},
+        "XEQT.TO": {"quoteType": "ETF", "shortName": "iShares Core Equity", "trailingPE": float("nan"), "marketCap": None},
+        "VOD.L": {"quoteType": "EQUITY", "marketCap": 2_000_000_000_000, "currency": "GBp", "trailingPE": "Infinity"},
+        "X": {},
+    }
 
     class T:
         def __init__(self, s):
             calls.append(s)
             if s == "BAD":
                 raise RuntimeError("no data")
-            self.info = {"XEQT.TO": {"quoteType": "ETF"}, "RY.TO": {"quoteType": "EQUITY"}, "X": {}}[s]
+            self.info = infos[s]
 
     provider = YFinanceProvider(ticker_factory=T)
-    assert await provider.get_asset_classes(["XEQT.TO", "RY.TO", "X", "BAD"]) == {
-        "XEQT.TO": "etf", "RY.TO": "stock", "X": "other", "BAD": "other"}
-    await provider.get_asset_classes(["RY.TO"])
-    assert sorted(calls) == ["BAD", "RY.TO", "X", "XEQT.TO"]
+    profiles = await provider.get_profiles(["RY.TO", "XEQT.TO", "VOD.L", "X", "BAD"])
+    assert profiles["RY.TO"] == SecurityProfile(
+        "stock", "Royal Bank of Canada", "Financial Services", "Banks - Diversified", "Canada",
+        D(250_000_000_000), "CAD", D("14.2"), "https://www.rbc.com")
+    assert (profiles["XEQT.TO"].asset_class, profiles["XEQT.TO"].name, profiles["XEQT.TO"].pe) == ("etf", "iShares Core Equity", None)
+    assert (profiles["VOD.L"].market_cap, profiles["VOD.L"].market_cap_currency, profiles["VOD.L"].pe) == (
+        D(20_000_000_000), "GBP", None)  # pence -> pounds; Infinity is no P/E
+    assert profiles["X"] == profiles["BAD"] == SecurityProfile()
+    await provider.get_profiles(["RY.TO"])
+    assert sorted(calls) == ["BAD", "RY.TO", "VOD.L", "X", "XEQT.TO"]
+
+
+async def test_quotes_carry_day_change_and_volume_onto_positions():
+    class T:
+        def __init__(self, s):
+            self.fast_info = {
+                "RY.TO": {"last_price": 110.0, "currency": "CAD", "previous_close": 100.0, "last_volume": 1234},
+                "VOD.L": {"last_price": 250.0, "currency": "GBp", "previous_close": 200.0, "last_volume": None},
+                "NEW": {"last_price": 5.0, "currency": "USD"},  # KeyError for the missing fields
+            }[s]
+
+    quotes = await YFinanceProvider(ticker_factory=T).get_quotes(["RY.TO", "VOD.L", "NEW"])
+    assert (quotes["RY.TO"].previous_close, quotes["RY.TO"].volume) == (D(100), 1234)
+    assert (quotes["VOD.L"].previous_close, quotes["VOD.L"].volume) == (D(2), None)  # pence
+    assert (quotes["NEW"].previous_close, quotes["NEW"].volume) == (None, None)
+    holdings = [Holding(1, "RY.TO", "CAD", quantity=D(1), cost_basis=D(90)), Holding(1, "NEW", "USD", quantity=D(1)),
+                Holding(1, "GONE", "CAD", quantity=D(1))]
+    ry, new, gone = compute_pnl(holdings, quotes, NOW).positions
+    assert (ry.day_change_pct, ry.volume) == (D(10), 1234)
+    assert (new.day_change_pct, new.volume) == (None, None)
+    assert (gone.day_change_pct, gone.volume) == (None, None)  # no quote

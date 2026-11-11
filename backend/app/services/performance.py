@@ -93,6 +93,8 @@ class PositionPnL:
     incomplete_history: bool = False
     source: str = "transactions"
     asset_class: str = "other"  # stock | etf | fund | other
+    day_change_pct: Decimal | None = None  # price vs the last session's close
+    volume: int | None = None
     # The cost as paid (cost_basis above is that converted to `currency` at spot when they differ).
     cost_currency: str = ""
     settled_cost_basis: Decimal | None = None
@@ -381,6 +383,10 @@ def compute_pnl(
             price, market_value, pnl, pct, h.first_buy_at, quote_as_of, status, h.incomplete_history,
             h.source, cost_currency=h.cost_currency, settled_cost_basis=h.cost_basis, realized_pnl=h.realized_pnl,
         ))
+        if price is not None:
+            snapshot.positions[-1].volume = quote.volume
+            if quote.previous_close:
+                snapshot.positions[-1].day_change_pct = (price / quote.previous_close - 1) * 100
     for currency, (cost, value) in sorted(sums.items()):
         snapshot.totals.append(CurrencyTotal(currency, cost, value, value - cost, _pct(value - cost, cost)))
     return snapshot

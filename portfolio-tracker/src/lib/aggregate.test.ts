@@ -8,6 +8,7 @@ function position(account_id: number, symbol: string, currency: string, cost: nu
     account_id, symbol, currency, quantity: 1, average_cost: cost, cost_basis: cost, price: value,
     market_value: value, unrealized_pnl: value - cost, unrealized_pct: ((value - cost) / cost) * 100,
     status: 'ok', first_buy_at: null, incomplete_history: false, source: 'transactions', asset_class: 'stock',
+    day_change_pct: null, volume: null,
   }
 }
 

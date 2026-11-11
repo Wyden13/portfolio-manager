@@ -48,6 +48,12 @@ async def test_demo_seed_flows_through_real_sync_and_reconciles(db_engine, monke
     snapshot = await build_pnl(holdings, provider, QuoteFxProvider(provider), "CAD")
     assert {p.status for p in snapshot.positions} == {"ok"}
     assert {p.asset_class for p in snapshot.positions} == {"stock", "etf"}
+    assert all(p.day_change_pct is not None and p.volume is not None for p in snapshot.positions)
+    profiles = await provider.get_profiles([p.symbol for p in snapshot.positions])
+    stocks = [s for s, pr in profiles.items() if pr.asset_class == "stock"]
+    assert stocks and all(profiles[s].sector and profiles[s].market_cap > 0 for s in stocks)
+    assert all(pr.name and pr.website for pr in profiles.values())
+    assert profiles["VOD.L"].market_cap_currency == "GBP"
     assert {t.currency for t in snapshot.totals} == {"CAD", "USD", "GBP"}
     assert snapshot.base_total is not None and snapshot.base_total.currency == "CAD"
     vod = next(p for p in snapshot.positions if p.symbol == "VOD.L")

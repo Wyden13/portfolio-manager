@@ -75,6 +75,7 @@ async def list_positions(
                 "first_buy_at": p.first_buy_at.isoformat() if p.first_buy_at else None,
                 "incomplete_history": p.incomplete_history, "source": p.source,
                 "asset_class": p.asset_class, "cost_currency": p.cost_currency,
+                "day_change_pct": _num(p.day_change_pct), "volume": p.volume,
                 "settled_cost_basis": _num(p.settled_cost_basis), "realized_pnl": _num(p.realized_pnl),
             }
             for p in snapshot.positions

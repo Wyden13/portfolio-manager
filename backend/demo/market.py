@@ -9,7 +9,7 @@ from datetime import date, datetime, timedelta, timezone
 
 import pandas as pd
 
-from demo.catalog import FX_PAIRS, INSTRUMENTS
+from demo.catalog import FX_PAIRS, INSTRUMENTS, PROFILES
 
 HISTORY_DAYS = 760
 TRADING_DAYS_PER_YEAR = 252
@@ -76,9 +76,7 @@ class Market:
             bars = _walk(rng, days, rate, 0.0, vol, 0)
             self.series[pair] = Series(pair, pair[3:6], "Europe/London", bars, *([bars[-1].close] * 3), 0)
         self.days = days
-        # Yahoo quoteType per ticker, for the asset-class lookup (Ticker.info).
-        self.quote_types = {i.yahoo: "ETF" if i.security_type == "et" else "EQUITY" for i in INSTRUMENTS.values()}
-        self.quote_types.update({pair: "CURRENCY" for pair in FX_PAIRS})
+        self.instruments = {i.yahoo: i for i in INSTRUMENTS.values()}
         self._closes = {y: {b.day: b.close for b in s.bars} for y, s in self.series.items()}
 
     def close_on(self, yahoo: str, day: date) -> float | None:
@@ -119,11 +117,23 @@ class FastInfo:
     def currency(self) -> str:
         return self._market.series[self._yahoo].currency
 
+    @property
+    def previous_close(self) -> float:
+        return self._market.series[self._yahoo].bars[-1].close
+
+    @property
+    def last_volume(self) -> int:
+        return self._market.series[self._yahoo].live_volume
+
     def __getitem__(self, key: str):
         if key in ("last_price", "lastPrice"):
             return self.last_price
         if key == "currency":
             return self.currency
+        if key in ("previous_close", "previousClose"):
+            return self.previous_close
+        if key in ("last_volume", "lastVolume"):
+            return self.last_volume
         raise KeyError(key)
 
 
@@ -141,7 +151,18 @@ class Ticker:
 
     @property
     def info(self) -> dict:
-        return {"symbol": self.ticker, "quoteType": self._market.quote_types[self.ticker]}
+        instrument = self._market.instruments.get(self.ticker)
+        if instrument is None:  # an FX pair
+            return {"symbol": self.ticker, "quoteType": "CURRENCY"}
+        profile = PROFILES[instrument.symbol]
+        series = self._market.series[self.ticker]
+        return {
+            "symbol": self.ticker, "quoteType": "ETF" if instrument.security_type == "et" else "EQUITY",
+            "longName": instrument.name, "currency": series.currency, "website": profile.website,
+            "sector": profile.sector, "industry": profile.industry, "country": profile.country,
+            "marketCap": int(profile.shares_millions * 1e6 * series.live) if profile.shares_millions else None,
+            "trailingPE": profile.pe,
+        }
 
     def history(self, start=None, end=None, interval: str = "1d", auto_adjust: bool = True, **_) -> pd.DataFrame:
         s = self._market.series[self.ticker]

@@ -1,8 +1,12 @@
-export type Tab = 'dashboard' | 'ledger' | 'connections'
+export type Tab = 'dashboard' | 'holdings' | 'ledger' | 'connections'
 
-const PATHS: Record<Tab, string> = { dashboard: '#/', ledger: '#/ledger', connections: '#/connections' }
+const PATHS: Record<Tab, string> = { dashboard: '#/', holdings: '#/holdings', ledger: '#/ledger', connections: '#/connections' }
 
-export const hashFor = (tab: Tab) => PATHS[tab]
+/** The tab's hash, with an optional query (`#/holdings?symbol=RY.TO`). */
+export function hashFor(tab: Tab, params?: Record<string, string>): string {
+  const qs = params ? new URLSearchParams(params).toString() : ''
+  return qs ? `${PATHS[tab]}?${qs}` : PATHS[tab]
+}
 
 /** `#/connections?linked=questrade` -> the tab plus its query (broker sign-ins report back there). */
 export function parseHash(hash: string): { tab: Tab; params: URLSearchParams } {

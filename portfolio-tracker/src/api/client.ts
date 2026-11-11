@@ -1,6 +1,6 @@
 import type {
   AccountValueHistoryResponse, BrokerageCatalog, ConnectionsOverview, HistoryInterval, HistoryRange, HistoryResponse, LedgerPage, LinkedAccount, Platform,
-  PortfolioSnapshot, TransactionKind,
+  PortfolioSnapshot, SecurityProfile, TransactionKind,
 } from '../types'
 
 async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
@@ -46,6 +46,9 @@ export function fetchHistory(
 export function fetchAccountValueHistory(range: HistoryRange, signal?: AbortSignal): Promise<AccountValueHistoryResponse> {
   return getJson<AccountValueHistoryResponse>(`/api/portfolio/value/accounts?${new URLSearchParams({ range })}`, signal)
 }
+
+export const fetchProfiles = (signal?: AbortSignal) =>
+  getJson<Record<string, SecurityProfile>>('/api/holdings/profiles', signal)
 
 export const fetchAccounts = (signal?: AbortSignal) => getJson<LinkedAccount[]>('/api/ledger/accounts', signal)
 

@@ -4,8 +4,10 @@ import { AccountPerformancePanel } from './components/AccountPerformance'
 import { CandlePanel } from './components/CandleChart'
 import { Connections } from './components/Connections'
 import { GainLossPanel } from './components/GainLossBars'
+import { HoldingsTable } from './components/HoldingsTable'
 import { Ledger } from './components/Ledger'
 import { Empty, Segmented } from './components/Panel'
+import { TopHoldings } from './components/TopHoldings'
 import { TotalAssetsCard } from './components/TotalAssetsCard'
 import { TreemapPanel } from './components/TreemapChart'
 import { AccountsContext, useAccounts, useAccountsLoader } from './hooks/useAccounts'
@@ -93,6 +95,9 @@ function Dashboard({ snapshot, history, theme }: {
       {snapshot.accounts.length > 0 && (
         <AccountCards accounts={snapshot.accounts} base={base} totalAssets={snapshot.total_assets_base} colorOf={colorOf} />
       )}
+      {snapshot.positions.length > 0 && (
+        <div className="grid top-holdings"><TopHoldings snapshot={snapshot} /></div>
+      )}
       {currency && (
         <>
           <div className="toolbar">
@@ -112,7 +117,7 @@ function Dashboard({ snapshot, history, theme }: {
   )
 }
 
-const TABS: Array<[Tab, string]> = [['dashboard', 'Dashboard'], ['ledger', 'Ledger'], ['connections', 'Connections']]
+const TABS: Array<[Tab, string]> = [['dashboard', 'Dashboard'], ['holdings', 'Holdings'], ['ledger', 'Ledger'], ['connections', 'Connections']]
 
 function App() {
   const [theme, toggleTheme] = useTheme()
@@ -121,10 +126,12 @@ function App() {
   // Reload account names once the server is reachable (they label charts and ledger filters).
   const accounts = useAccountsLoader(state.status === 'live' ? 1 : 0)
   const badge = connectionBadge(state)
+  // Tabs that show the live portfolio (and its loading and offline states).
+  const live = tab === 'dashboard' || tab === 'holdings'
 
   return (
     <AccountsContext.Provider value={accounts}>
-      <div className="app">
+      <div className={`app${tab === 'holdings' ? ' wide' : ''}`}>
         <header className="topbar">
           <h1>InvestIQ</h1>
           <nav className="tabs" aria-label="Views">
@@ -146,22 +153,24 @@ function App() {
         <main>
           {tab === 'ledger' && <Ledger />}
           {tab === 'connections' && <Connections />}
-          {tab === 'dashboard' && state.status === 'connecting' && <Empty>Loading your portfolio…</Empty>}
-          {tab === 'dashboard' && state.status === 'offline' && (
+          {live && state.status === 'connecting' && <Empty>Loading your portfolio…</Empty>}
+          {live && state.status === 'offline' && (
             <div className="state offline" role="alert">
               <p className="offline-title">Can’t reach the InvestIQ server</p>
               <p className="muted small" title={state.error}>Your portfolio will appear as soon as the connection is back.</p>
               <button type="button" className="btn" onClick={retry}>Try again</button>
             </div>
           )}
-          {tab === 'dashboard' && state.status === 'live' && (
+          {live && state.status === 'live' && (
             <>
               {state.stream === 'closed' && (
                 <p className="banner warn" role="alert">
                   Live updates stopped. <button type="button" className="link-btn" onClick={retry}>Reconnect</button>
                 </p>
               )}
-              <Dashboard snapshot={state.snapshot} history={state.history} theme={theme} />
+              {tab === 'dashboard'
+                ? <Dashboard snapshot={state.snapshot} history={state.history} theme={theme} />
+                : <HoldingsTable snapshot={state.snapshot} theme={theme} />}
             </>
           )}
         </main>

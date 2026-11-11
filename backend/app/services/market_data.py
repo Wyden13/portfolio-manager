@@ -26,6 +26,22 @@ class Quote:
     price: Decimal
     currency: str
     as_of: datetime  # naive UTC time we fetched it
+    previous_close: Decimal | None = None  # the last session's close, same unit as price
+    volume: int | None = None  # shares traded in the current session
+
+
+@dataclass
+class SecurityProfile:
+    """What a listing is, for the holdings table. Fields Yahoo doesn't have are None."""
+    asset_class: str = "other"  # stock | etf | fund | other
+    name: str | None = None
+    sector: str | None = None
+    industry: str | None = None
+    country: str | None = None
+    market_cap: Decimal | None = None
+    market_cap_currency: str | None = None
+    pe: Decimal | None = None  # trailing
+    website: str | None = None
 
 
 def day_timestamp(day: date) -> int:
@@ -76,6 +92,23 @@ def to_major_unit(price: Decimal, currency: str) -> tuple[Decimal, str]:
     return price, currency
 
 
+def _positive(value, allow_zero: bool = False) -> Decimal | None:
+    """A positive finite number from Yahoo, else None (it sends None, NaN, 'Infinity' and zeros)."""
+    try:
+        number = Decimal(str(value))
+    except Exception:
+        return None
+    return number if number.is_finite() and (number > 0 or (allow_zero and number == 0)) else None
+
+
+def _optional_field(info, key: str, allow_zero: bool = False) -> Decimal | None:
+    """A FastInfo field that may be missing or fail to load."""
+    try:
+        return _positive(info[key], allow_zero)
+    except Exception:
+        return None
+
+
 class QuoteProvider(ABC):
     """Source of real-time prices. Swap implementations without touching the pipeline."""
 
@@ -83,8 +116,8 @@ class QuoteProvider(ABC):
     async def get_quotes(self, symbols: list[str]) -> dict[str, Quote]:
         """Return quotes for the symbols that could be priced; unknown symbols are omitted."""
 
-    async def get_asset_classes(self, symbols: list[str]) -> dict[str, str]:
-        """stock | etf | fund | other per symbol; symbols it can't classify may be omitted (other)."""
+    async def get_profiles(self, symbols: list[str]) -> dict[str, SecurityProfile]:
+        """Profiles per symbol; symbols it knows nothing about may be omitted."""
         return {}
 
 
@@ -101,9 +134,9 @@ class YFinanceProvider(QuoteProvider, HistoryProvider):
 
     # Charts refetch on every range switch; keep Yahoo calls down without serving stale bars long.
     HISTORY_TTL_SECONDS = 60
-    # Ticker.info is slow (a full quote-summary call) and a listing's type doesn't change.
-    CLASS_TTL_SECONDS = 24 * 3600
-    CLASS_FAILURE_TTL_SECONDS = 600
+    # Ticker.info is slow (a full quote-summary call); a day-old market cap or P/E is fine.
+    PROFILE_TTL_SECONDS = 24 * 3600
+    PROFILE_FAILURE_TTL_SECONDS = 600
 
     def __init__(self, ticker_factory=None):
         if ticker_factory is None:
@@ -112,23 +145,33 @@ class YFinanceProvider(QuoteProvider, HistoryProvider):
             ticker_factory = yfinance.Ticker
         self._ticker = ticker_factory
         self._history_cache: dict[tuple, tuple[float, PriceHistory]] = {}
-        self._class_cache: dict[str, tuple[float, str]] = {}  # symbol -> (expires, class)
+        self._profile_cache: dict[str, tuple[float, SecurityProfile]] = {}  # symbol -> (expires, profile)
 
-    def _fetch_class(self, symbol: str) -> tuple[str, bool]:
+    def _fetch_profile(self, symbol: str) -> tuple[SecurityProfile, bool]:
         try:
-            quote_type = (self._ticker(to_yahoo_symbol(symbol)).info or {}).get("quoteType") or ""
+            info = self._ticker(to_yahoo_symbol(symbol)).info or {}
         except Exception:
-            return "other", False
-        return _ASSET_CLASSES.get(quote_type.upper(), "other"), True
+            return SecurityProfile(), False
+        market_cap, cap_currency = _positive(info.get("marketCap")), info.get("currency") or None
+        if market_cap is not None and cap_currency:
+            market_cap, cap_currency = to_major_unit(market_cap, cap_currency)
+        return SecurityProfile(
+            asset_class=_ASSET_CLASSES.get(str(info.get("quoteType") or "").upper(), "other"),
+            name=info.get("longName") or info.get("shortName") or None,
+            sector=info.get("sector") or None, industry=info.get("industry") or None,
+            country=info.get("country") or None,
+            market_cap=market_cap, market_cap_currency=cap_currency if market_cap is not None else None,
+            pe=_positive(info.get("trailingPE")), website=info.get("website") or None,
+        ), True
 
-    async def get_asset_classes(self, symbols: list[str]) -> dict[str, str]:
+    async def get_profiles(self, symbols: list[str]) -> dict[str, SecurityProfile]:
         now = time.monotonic()
-        missing = sorted({s for s in symbols if self._class_cache.get(s, (0.0, ""))[0] <= now})
-        results = await asyncio.gather(*(asyncio.to_thread(self._fetch_class, s) for s in missing))
-        for symbol, (asset_class, ok) in zip(missing, results):
-            ttl = self.CLASS_TTL_SECONDS if ok else self.CLASS_FAILURE_TTL_SECONDS
-            self._class_cache[symbol] = (now + ttl, asset_class)
-        return {s: self._class_cache[s][1] for s in symbols}
+        missing = sorted({s for s in symbols if s not in self._profile_cache or self._profile_cache[s][0] <= now})
+        results = await asyncio.gather(*(asyncio.to_thread(self._fetch_profile, s) for s in missing))
+        for symbol, (profile, ok) in zip(missing, results):
+            ttl = self.PROFILE_TTL_SECONDS if ok else self.PROFILE_FAILURE_TTL_SECONDS
+            self._profile_cache[symbol] = (now + ttl, profile)
+        return {s: self._profile_cache[s][1] for s in symbols}
 
     def _fetch(self, symbol: str) -> Quote | None:
         try:
@@ -139,12 +182,17 @@ class YFinanceProvider(QuoteProvider, HistoryProvider):
             return None
         if price is None or price != price or price <= 0:  # None, NaN, or nonsense
             return None
-        price, currency = to_major_unit(Decimal(str(price)), currency or "")
+        price, major = to_major_unit(Decimal(str(price)), currency or "")
+        previous = _optional_field(info, "previous_close")
+        previous = to_major_unit(previous, currency or "")[0] if previous is not None else None
+        volume = _optional_field(info, "last_volume", allow_zero=True)  # nothing traded yet today is 0
         return Quote(
             symbol=symbol,
             price=price,
-            currency=currency,
+            currency=major,
             as_of=datetime.now(timezone.utc).replace(tzinfo=None),
+            previous_close=previous,
+            volume=int(volume) if volume is not None else None,
         )
 
     async def get_quotes(self, symbols: list[str]) -> dict[str, Quote]:

@@ -219,3 +219,52 @@ a.btn { display: inline-block; text-decoration: none; font-size: 14px; }
 .broker-tile:disabled .pill { opacity: 1; }
 @media (max-width: 420px) { .broker-tiles { grid-template-columns: 1fr; } .broker-tile { flex-direction: row; text-align: left; padding: 12px; gap: 12px; } .broker-tile .broker-logo { margin: 0; } }
 @media (prefers-reduced-motion: reduce) { .broker-tile { transition: none; } .broker-tile:hover:not(:disabled) { transform: none; } }
+
+/* Holdings: a screener-style table. Ticker and row number stay put while the rest scrolls sideways. */
+.table-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; margin: 0 0 10px; }
+.holdings-wrap { max-height: min(75vh, 900px); overflow: auto; border-top: 1px solid var(--border); }
+.holdings { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.holdings th { position: sticky; top: 0; z-index: 2; padding: 0; text-align: left; font-size: 12px; font-weight: 600; color: var(--muted); background: var(--surface); border-bottom: 1px solid var(--border); }
+.holdings th.num { text-align: right; }
+.holdings th:not(:has(button)) { padding: 8px 10px; }
+.holdings .sort { display: inline-flex; align-items: center; gap: 4px; width: 100%; padding: 8px 10px; border: 0; background: none; color: inherit; font: inherit; text-align: inherit; cursor: pointer; }
+.holdings th.num .sort { justify-content: flex-end; }
+.holdings .sort:hover, .holdings th[aria-sort] .sort { color: var(--text); }
+.sort-arrow { display: inline-block; width: 0.8em; font-size: 9px; }
+.holdings td { padding: 6px 10px; border-bottom: 1px solid var(--border); }
+.holdings .num { text-align: right; }
+.holdings .strong { font-weight: 600; }
+.holdings td.gain { color: var(--gain); }
+.holdings td.loss { color: var(--loss); }
+.holdings tbody tr:hover td { background: color-mix(in srgb, var(--accent) 6%, var(--surface)); }
+.holdings .c-no, .holdings .c-symbol { position: sticky; z-index: 1; background: var(--surface); }
+.holdings .c-no { left: 0; min-width: 44px; }
+.holdings .c-symbol { left: 44px; box-shadow: 1px 0 0 var(--border); }
+.holdings th.c-no, .holdings th.c-symbol { z-index: 3; }
+.holdings.compact .c-symbol { left: 0; }
+.holdings .c-name { max-width: 240px; overflow: hidden; text-overflow: ellipsis; }
+.holdings tr.child td { font-size: 13px; background: color-mix(in srgb, var(--muted) 5%, var(--surface)); }
+.holdings .child-account { padding-left: 34px; color: var(--muted); }
+.holdings .expand { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; text-decoration: none; }
+.chevron { display: inline-block; width: 1em; }
+.ticker { display: inline-flex; align-items: center; gap: 8px; }
+.ticker a { font-weight: 600; color: var(--accent); text-decoration: none; }
+.ticker a:hover { text-decoration: underline; }
+.ticker-logo { flex: none; display: inline-grid; place-items: center; width: 20px; height: 20px; padding: 2px; border-radius: 5px; background: #fff; border: 1px solid var(--border); object-fit: contain; }
+.ticker-logo.monogram { padding: 0; background: color-mix(in srgb, var(--accent) 14%, var(--surface)); border-color: color-mix(in srgb, var(--accent) 30%, var(--border)); color: var(--accent); font-size: 8.5px; font-weight: 700; letter-spacing: -0.02em; }
+.grid.top-holdings { margin-bottom: 16px; }
+
+/* Ticker drawer: slides in from the right over the table. */
+.dialog.drawer { width: min(760px, 100vw); max-width: none; height: 100dvh; max-height: 100dvh; margin: 0 0 0 auto; border-radius: 14px 0 0 14px; overflow-y: auto; }
+.drawer .dialog-head .ticker-logo { width: 32px; height: 32px; padding: 4px; border-radius: 8px; font-size: 11px; }
+.drawer h2 { display: flex; flex-direction: column; gap: 2px; }
+.drawer-name { font-size: 14px; font-weight: 400; }
+.drawer-facts { margin-bottom: 12px; }
+.drawer-chart { margin-top: 12px; }
+.drawer-chart .panel { box-shadow: none; }
+@media (max-width: 640px) { .dialog.drawer { border-radius: 0; padding: 16px; } }
+/* The holdings table has many columns: let its tab use wide screens instead of scrolling sideways. */
+.app.wide { max-width: 1880px; }
+/* Four tabs don't fit a phone next to the title: the tab bar scrolls instead of widening the page. */
+.tabs { min-width: 0; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+.tabs a { flex: none; }

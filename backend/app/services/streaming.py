@@ -63,6 +63,7 @@ def snapshot_to_proto(snapshot: PnLSnapshot) -> pnl_pb2.PnLUpdate:
                 first_buy_ms=_ms(p.first_buy_at), quote_as_of_ms=_ms(p.quote_as_of),
                 status=_STATUS[p.status], incomplete_history=p.incomplete_history,
                 source=_SOURCE[p.source], asset_class=p.asset_class,
+                day_change_pct=_optional(p.day_change_pct), volume=p.volume,
             )
             for p in snapshot.positions
         ],

@@ -57,6 +57,41 @@ FX_PAIRS = {"USDCAD=X": (1.36, 0.025), "GBPCAD=X": (1.72, 0.03)}
 
 
 @dataclass(frozen=True)
+class Profile:
+    """The parts of Yahoo's Ticker.info the holdings table reads (real public values, roughly)."""
+    website: str
+    sector: str | None = None  # Yahoo gives ETFs no sector, industry, country or market cap
+    industry: str | None = None
+    country: str | None = None
+    shares_millions: float | None = None  # market cap = shares x live price
+    pe: float | None = None
+
+
+PROFILES = {
+    "RY.TO": Profile("https://www.rbc.com", "Financial Services", "Banks - Diversified", "Canada", 1410, 14.8),
+    "TD.TO": Profile("https://www.td.com", "Financial Services", "Banks - Diversified", "Canada", 1750, 11.9),
+    "ENB.TO": Profile("https://www.enbridge.com", "Energy", "Oil & Gas Midstream", "Canada", 2180, 19.5),
+    "SHOP.TO": Profile("https://www.shopify.com", "Technology", "Software - Application", "Canada", 1300, 95.0),
+    "BBD.B.TO": Profile("https://bombardier.com", "Industrials", "Aerospace & Defense", "Canada", 98, 24.0),
+    "CNR.TO": Profile("https://www.cn.ca", "Industrials", "Railroads", "Canada", 628, 18.6),
+    "XEQT.TO": Profile("https://www.blackrock.com"),
+    "VFV.TO": Profile("https://www.vanguard.ca"),
+    "XIU.TO": Profile("https://www.blackrock.com"),
+    "ZAG.TO": Profile("https://www.bmo.com"),
+    "AAPL": Profile("https://www.apple.com", "Technology", "Consumer Electronics", "United States", 15000, 33.5),
+    "MSFT": Profile("https://www.microsoft.com", "Technology", "Software - Infrastructure", "United States", 7430, 35.1),
+    "NVDA": Profile("https://www.nvidia.com", "Technology", "Semiconductors", "United States", 24400, 52.0),
+    "GOOGL": Profile("https://abc.xyz", "Communication Services", "Internet Content & Information", "United States",
+                     12200, 24.3),
+    "AMZN": Profile("https://www.aboutamazon.com", "Consumer Cyclical", "Internet Retail", "United States", 10500, 38.9),
+    "VOO": Profile("https://investor.vanguard.com"),
+    "BRK.B": Profile("https://www.berkshirehathaway.com", "Financial Services", "Insurance - Diversified",
+                     "United States", 2160, 13.2),
+    "VOD.L": Profile("https://www.vodafone.com", "Communication Services", "Telecom Services", "United Kingdom", 26000),
+}
+
+
+@dataclass(frozen=True)
 class Holding:
     symbol: str
     monthly_budget: float  # in the account's trading currency for this symbol

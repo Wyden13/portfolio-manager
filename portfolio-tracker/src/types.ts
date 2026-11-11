@@ -22,6 +22,24 @@ export interface Position {
   incomplete_history: boolean
   source: CostSource
   asset_class: AssetClass
+  /** Price vs the last session's close; null without a quote or a close. */
+  day_change_pct: number | null
+  /** Shares traded this session; null without a quote. */
+  volume: number | null
+}
+
+/** GET /api/holdings/profiles: what each held listing is (from Yahoo, refreshed daily). */
+export interface SecurityProfile {
+  asset_class: AssetClass
+  name: string | null
+  sector: string | null
+  industry: string | null
+  country: string | null
+  market_cap: number | null
+  market_cap_currency: string | null
+  /** Trailing P/E; null when there are no earnings (or for funds). */
+  pe: number | null
+  website: string | null
 }
 
 /** Cash computed from the stored activity history, in its own currency. */

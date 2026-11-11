@@ -95,9 +95,9 @@ async def build_pnl(
         base = (base or settings.BASE_CURRENCY).upper()
         rates = await fx.get_rates(sorted(currencies), base)
     snapshot = compute_pnl(holdings, quotes, datetime.now(timezone.utc).replace(tzinfo=None), rates)
-    classes = await provider.get_asset_classes(symbols) if holdings else {}
+    profiles = await provider.get_profiles(symbols) if holdings else {}
     for p in snapshot.positions:
-        p.asset_class = classes.get(p.symbol, "other")
+        p.asset_class = profiles[p.symbol].asset_class if p.symbol in profiles else "other"
     if fx is not None and currencies:
         snapshot.base_currency = base
         snapshot.fx_rates = rates
